@@ -1,0 +1,1914 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>10-30-50 CRM</title>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080a0c; --panel:#0e1114; --card:#13171b; --card2:#181c21;
+  --border:#1f252c; --border2:#262d36;
+  --green:#25D366; --dgreen:#1aab52;
+  --red:#ff3b4e; --orange:#ff9500; --blue:#3b8ff5;
+  --purple:#9b6dff; --yellow:#ffd60a; --cyan:#00d4ff;
+  --text:#eef0f3; --text2:#8a95a3; --text3:#3a4252;
+  --s0:#3b8ff5; --s1:#ff9500; --s2:#ff6b35; --s3:#9b6dff; --s4:#25D366; --s5:#8a95a3;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{background:var(--bg);color:var(--text);font-family:'Golos Text',sans-serif;
+  height:100%;height:100dvh;overflow:hidden;overscroll-behavior:none;}
+.app{display:flex;flex-direction:column;height:100%;height:100dvh;}
+
+/* HEADER */
+.header{background:var(--panel);border-bottom:1px solid var(--border);padding:10px 16px;flex-shrink:0;}
+.header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.logo{font-family:'Unbounded',sans-serif;font-size:17px;font-weight:900;color:var(--green);letter-spacing:-0.5px;}
+.logo span{color:var(--text3);}
+.live{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--green);}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.6)}}
+.counters{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.counter{background:var(--card);border:1px solid var(--border);border-radius:10px;
+  padding:8px 12px;display:flex;align-items:center;gap:10px;position:relative;overflow:hidden;}
+.counter::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;}
+.counter.c-touch::after{background:var(--blue);}
+.counter.c-funnel::after{background:var(--green);}
+.c-num{font-family:'Unbounded',sans-serif;font-size:22px;font-weight:900;line-height:1;}
+.c-num span{font-size:13px;color:var(--text3);}
+.counter.c-touch .c-num{color:var(--blue);}
+.counter.c-funnel .c-num{color:var(--green);}
+.c-info .c-lbl{font-size:10px;color:var(--text2);font-weight:600;letter-spacing:.3px;}
+.c-info .c-sub{font-size:10px;color:var(--text3);margin-top:1px;}
+.c-bar{height:3px;background:var(--border);border-radius:2px;margin-top:4px;width:80px;overflow:hidden;}
+.c-bar-fill{height:100%;border-radius:2px;transition:width .5s ease;}
+.counter.c-touch .c-bar-fill{background:var(--blue);}
+.counter.c-funnel .c-bar-fill{background:var(--green);}
+
+/* SCREENS */
+.screen{display:none;flex:1;flex-direction:column;overflow:hidden;}
+.screen.active{display:flex;}
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.scroll::-webkit-scrollbar{display:none;}
+
+/* FILTER TABS */
+.filter-row{display:flex;gap:6px;padding:10px 14px;overflow-x:auto;flex-shrink:0;
+  background:var(--panel);border-bottom:1px solid var(--border);}
+.filter-row::-webkit-scrollbar{display:none;}
+.f-btn{flex-shrink:0;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;
+  border:1px solid var(--border2);background:var(--card);color:var(--text2);
+  cursor:pointer;font-family:'Golos Text',sans-serif;transition:all .15s;}
+.f-btn.active{background:var(--green) !important;color:#000 !important;border-color:var(--green) !important;}
+
+/* SECTION TITLE */
+.sec-title{padding:10px 14px 5px;display:flex;align-items:center;gap:8px;
+  font-family:'Unbounded',sans-serif;font-size:9px;font-weight:700;
+  letter-spacing:1.5px;text-transform:uppercase;}
+.sec-line{flex:1;height:1px;background:var(--border);}
+.sec-cnt{background:var(--border2);color:var(--text2);font-size:10px;padding:1px 7px;border-radius:8px;}
+
+/* CONTACT CARD */
+.cc{margin:0 12px 8px;background:var(--card);border:1px solid var(--border);
+  border-radius:14px;overflow:hidden;}
+.cc-main{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;}
+.cc-av{width:44px;height:44px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;position:relative;}
+.av-ring{position:absolute;inset:-2px;border-radius:50%;border:2px solid transparent;}
+.cc-info{flex:1;min-width:0;}
+.cc-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cc-sub{font-size:11px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cc-right{text-align:right;flex-shrink:0;}
+.s-pill{font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;
+  font-family:'Unbounded',sans-serif;letter-spacing:.3px;white-space:nowrap;}
+.cc-kpi{font-size:11px;color:var(--text2);margin-top:3px;}
+
+/* ACTION ROW */
+.cc-actions{display:flex;border-top:1px solid var(--border);}
+.ca-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;padding:9px 4px;background:none;border:none;color:var(--text2);
+  font-family:'Golos Text',sans-serif;font-size:10px;cursor:pointer;
+  border-right:1px solid var(--border);transition:background .15s;}
+.ca-btn:last-child{border-right:none;}
+.ca-btn:active{background:var(--card2);}
+.ca-btn.green:active{background:rgba(37,211,102,.12);color:var(--green);}
+.ca-btn.orange:active{background:rgba(255,149,0,.12);color:var(--orange);}
+.ca-btn-ic{font-size:17px;}
+
+/* DETAIL */
+.cc-detail{display:none;border-top:1px solid var(--border);background:var(--card2);}
+.cc-detail.open{display:block;}
+.detail-inner{padding:13px 14px;}
+.d-section{margin-bottom:14px;}
+.d-lbl{font-size:10px;color:var(--text2);font-weight:700;letter-spacing:.5px;
+  text-transform:uppercase;margin-bottom:7px;}
+
+/* КАСАНИЯ */
+.touches-list{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
+.touch-item{display:flex;align-items:center;gap:8px;background:var(--card);
+  border:1px solid var(--border);border-radius:8px;padding:7px 10px;cursor:pointer;}
+.touch-item:active{background:var(--border);}
+.touch-num{font-family:'Unbounded',sans-serif;font-size:10px;font-weight:700;
+  color:var(--text2);width:20px;flex-shrink:0;}
+.touch-type{font-size:13px;flex-shrink:0;}
+.touch-date{font-size:12px;color:var(--text);flex:1;}
+.touch-edit{font-size:10px;color:var(--text3);}
+.touch-progress{display:flex;gap:4px;margin-bottom:8px;}
+.tp-dot{width:22px;height:22px;border-radius:50%;border:2px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;
+  color:var(--text3);transition:all .2s;}
+.tp-dot.done{background:var(--green);border-color:var(--green);color:#000;}
+.tp-dot.done.call{background:var(--blue);border-color:var(--blue);}
+.tp-dot.done.write{background:var(--green);border-color:var(--green);}
+.tp-dot.done.manual{background:var(--orange);border-color:var(--orange);}
+.tp-dot.mid{border-color:var(--orange);}
+
+/* STATUS CHANGE */
+.status-row{display:flex;gap:5px;flex-wrap:wrap;}
+.sc-btn{padding:5px 10px;border-radius:8px;font-size:11px;font-weight:600;
+  border:1px solid var(--border2);background:var(--card);color:var(--text2);
+  cursor:pointer;font-family:'Golos Text',sans-serif;}
+
+/* COMMENTS */
+.comment-list{display:flex;flex-direction:column;gap:5px;margin-bottom:7px;}
+.comment-item{background:var(--card);border:1px solid var(--border);border-radius:8px;
+  padding:7px 10px;font-size:12px;line-height:1.4;}
+.comment-time{font-size:10px;color:var(--text3);margin-top:2px;}
+.row-inp{display:flex;gap:6px;}
+.inp{flex:1;background:var(--bg);border:1px solid var(--border2);border-radius:8px;
+  padding:8px 10px;font-family:'Golos Text',sans-serif;font-size:13px;
+  color:var(--text);outline:none;}
+.inp:focus{border-color:var(--green);}
+.inp::placeholder{color:var(--text3);}
+.inp-date{background:var(--bg);border:1px solid var(--border2);border-radius:8px;
+  padding:8px 10px;font-family:'Golos Text',sans-serif;font-size:12px;
+  color:var(--text);outline:none;min-width:130px;flex-shrink:0;}
+.save-btn{background:var(--green);border:none;color:#000;padding:8px 13px;
+  border-radius:8px;font-family:'Golos Text',sans-serif;font-size:13px;
+  font-weight:700;cursor:pointer;white-space:nowrap;}
+
+/* TASK MINI */
+.task-mini{display:flex;align-items:center;gap:8px;background:var(--card);
+  border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:5px;}
+.tm-text{flex:1;font-size:12px;line-height:1.3;}
+.tm-date{font-size:10px;color:var(--text2);flex-shrink:0;}
+.tm-done{background:none;border:1px solid var(--border2);color:var(--text2);
+  padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;flex-shrink:0;}
+.tm-done:active{background:var(--green);color:#000;border-color:var(--green);}
+
+/* TASKS SCREEN */
+.bulk-bar{display:none;padding:9px 14px;background:var(--panel);
+  border-bottom:1px solid var(--border);flex-shrink:0;
+  align-items:center;gap:8px;}
+.bulk-bar.show{display:flex;}
+.bulk-sel-all{background:var(--card);border:1px solid var(--border2);color:var(--text);
+  padding:7px 12px;border-radius:8px;font-size:12px;cursor:pointer;
+  font-family:'Golos Text',sans-serif;white-space:nowrap;}
+.bulk-sel-all:active{background:var(--border2);}
+.bulk-right{display:flex;gap:6px;margin-left:auto;}
+.bulk-btn{background:var(--card);border:1px solid var(--border2);color:var(--text);
+  padding:7px 12px;border-radius:8px;font-size:12px;cursor:pointer;
+  font-family:'Golos Text',sans-serif;white-space:nowrap;}
+.bulk-btn.g:active{background:var(--green);color:#000;border-color:var(--green);}
+.bulk-btn.r:active{background:var(--red);color:#fff;border-color:var(--red);}
+
+.tasks-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+.tt-btn{flex:1;padding:11px 4px;text-align:center;font-family:'Unbounded',sans-serif;
+  font-size:9px;font-weight:700;letter-spacing:1px;color:var(--text2);
+  background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;
+  text-transform:uppercase;position:relative;}
+.tt-btn.active{color:var(--green);border-bottom-color:var(--green);}
+.tt-badge{position:absolute;top:6px;right:8px;background:var(--red);color:#fff;
+  font-size:9px;padding:1px 5px;border-radius:8px;}
+
+.task-card{margin:0 12px 8px;background:var(--card);border:1px solid var(--border);
+  border-radius:12px;padding:12px 14px;position:relative;overflow:hidden;
+  transition:opacity .3s,transform .3s;}
+.task-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
+.task-card.overdue{border-color:rgba(255,59,78,.15);}
+.task-card.overdue::before{background:var(--red);}
+.task-card.today::before{background:var(--orange);}
+.task-card.upcoming::before{background:var(--green);}
+
+.tc-row{display:flex;align-items:flex-start;gap:10px;}
+.tc-check{width:22px;height:22px;border-radius:7px;border:2px solid var(--border2);
+  flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  margin-top:1px;transition:all .15s;font-size:12px;font-weight:700;}
+.tc-check.on{background:var(--green);border-color:var(--green);color:#000;}
+.tc-body{flex:1;min-width:0;}
+.tc-contact{font-size:13px;font-weight:700;}
+.tc-text{font-size:13px;color:var(--text2);margin-top:3px;line-height:1.4;}
+.tc-footer{display:flex;align-items:center;justify-content:space-between;margin-top:9px;}
+.tc-time{font-size:12px;}
+.tc-time.r{color:var(--red);}
+.tc-time.o{color:var(--orange);}
+.tc-time.g{color:var(--green);}
+.tc-btns{display:flex;gap:5px;}
+.tc-btn{background:var(--card2);border:1px solid var(--border2);color:var(--text2);
+  padding:6px 11px;border-radius:8px;font-size:12px;cursor:pointer;
+  font-family:'Golos Text',sans-serif;}
+.tc-btn:active{background:var(--green);color:#000;border-color:var(--green);}
+.tc-status-tag{font-size:9px;padding:3px 7px;border-radius:8px;
+  font-family:'Unbounded',sans-serif;font-weight:700;flex-shrink:0;white-space:nowrap;}
+
+/* ИНОЕ */
+.other-header{display:flex;align-items:center;gap:6px;padding:10px 14px;
+  overflow-x:auto;flex-shrink:0;background:var(--panel);border-bottom:1px solid var(--border);}
+.other-header::-webkit-scrollbar{display:none;}
+.ot-btn{flex-shrink:0;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;
+  border:1px solid var(--border2);background:var(--card);color:var(--text2);
+  cursor:pointer;font-family:'Golos Text',sans-serif;transition:all .15s;}
+.ot-btn.active{background:var(--yellow);color:#000;border-color:var(--yellow);}
+.ot-add{flex-shrink:0;width:32px;height:32px;border-radius:50%;
+  background:var(--card);border:1px solid var(--border2);color:var(--text2);
+  font-size:20px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;margin-left:2px;}
+.ot-add:active{background:var(--green);color:#000;border-color:var(--green);}
+
+/* BOTTOM NAV */
+.bottom-nav{flex-shrink:0;display:flex;background:var(--panel);
+  border-top:1px solid var(--border);padding-bottom:env(safe-area-inset-bottom,0);}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;
+  padding:9px 4px 7px;gap:3px;cursor:pointer;background:none;border:none;
+  color:var(--text2);font-family:'Golos Text',sans-serif;position:relative;}
+.nav-btn.active{color:var(--green);}
+.nav-btn.active::after{content:'';position:absolute;top:0;left:25%;right:25%;
+  height:2px;background:var(--green);border-radius:0 0 3px 3px;}
+.nav-icon{font-size:20px;}
+.nav-lbl{font-size:9px;font-weight:700;letter-spacing:.5px;font-family:'Unbounded',sans-serif;}
+.nav-badge{position:absolute;top:5px;right:calc(50% - 16px);background:var(--red);
+  color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;min-width:15px;text-align:center;}
+
+/* FAB */
+.fab{position:fixed;bottom:74px;right:16px;width:52px;height:52px;border-radius:50%;
+  background:var(--green);border:none;color:#000;font-size:28px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;box-shadow:0 4px 20px rgba(37,211,102,.35);z-index:50;transition:transform .15s;}
+.fab:active{transform:scale(.9);}
+
+/* MODALS */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:flex-end;justify-content:center;}
+.overlay.open{display:flex;}
+@media(min-width:600px){.overlay{align-items:center;}.modal{border-radius:16px!important;max-width:480px;width:100%;}}
+.modal{background:var(--panel);border-radius:20px 20px 0 0;padding:20px;width:100%;
+  border-top:1px solid var(--border);max-height:88vh;overflow-y:auto;}
+.modal::-webkit-scrollbar{display:none;}
+.modal-title{font-family:'Unbounded',sans-serif;font-size:13px;font-weight:700;
+  margin-bottom:16px;text-align:center;}
+.modal-btns{display:flex;gap:8px;margin-top:14px;}
+.m-btn{flex:1;padding:13px;border-radius:10px;font-family:'Golos Text',sans-serif;
+  font-size:14px;font-weight:600;cursor:pointer;border:none;}
+.m-btn.cancel{background:var(--card);color:var(--text2);}
+.m-btn.confirm{background:var(--green);color:#000;}
+.m-btn.danger{background:var(--red);color:#fff;}
+.form-field{margin-bottom:12px;}
+.form-lbl{font-size:11px;color:var(--text2);margin-bottom:5px;display:block;font-weight:600;}
+.form-inp{width:100%;background:var(--card);border:1px solid var(--border2);
+  border-radius:10px;padding:11px 13px;font-family:'Golos Text',sans-serif;
+  font-size:14px;color:var(--text);outline:none;}
+.form-inp:focus{border-color:var(--green);}
+.form-select{appearance:none;}
+.touch-edit-opts{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+.teo-btn{padding:12px;border-radius:10px;background:var(--card);border:1px solid var(--border2);
+  color:var(--text);font-family:'Golos Text',sans-serif;font-size:14px;cursor:pointer;text-align:left;}
+.teo-btn:active{border-color:var(--green);}
+.teo-btn.danger{color:var(--red);}
+
+/* UTILS */
+.pb{padding-bottom:16px;}
+.fade-in{animation:fi .2s ease forwards;}
+@keyframes fi{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.empty{padding:32px;text-align:center;color:var(--text2);font-size:13px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-top">
+    <div class="logo">10<span>-</span>30<span>-</span>50</div>
+    <div class="live"><div class="live-dot"></div>LIVE</div>
+  </div>
+  <div class="counters">
+    <div class="counter c-touch">
+      <div>
+        <div class="c-num" id="cntTouch">0<span>/30</span></div>
+        <div class="c-bar"><div class="c-bar-fill" id="barTouch" style="width:0%"></div></div>
+      </div>
+      <div class="c-info">
+        <div class="c-lbl">КАСАНИЯ</div>
+        <div class="c-sub">сегодня</div>
+      </div>
+    </div>
+    <div class="counter c-funnel">
+      <div>
+        <div class="c-num" id="cntFunnel">0<span>/50</span></div>
+        <div class="c-bar"><div class="c-bar-fill" id="barFunnel" style="width:0%"></div></div>
+      </div>
+      <div class="c-info">
+        <div class="c-lbl">ВОРОНКА</div>
+        <div class="c-sub">контактов</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ВОРОНКА -->
+<div class="screen active" id="screen-funnel">
+  <div class="filter-row" id="funnelFilter">
+    <div class="f-btn active" data-f="all" onclick="filterFunnel('all',this)">Все</div>
+    <div class="f-btn" data-f="0" onclick="filterFunnel('0',this)">🔵 Новый</div>
+    <div class="f-btn" data-f="1" onclick="filterFunnel('1',this)">🟠 Кас.1-5</div>
+    <div class="f-btn" data-f="2" onclick="filterFunnel('2',this)">🔶 Кас.6-10</div>
+    <div class="f-btn" data-f="3" onclick="filterFunnel('3',this)">🟣 Договор</div>
+    <div class="f-btn" data-f="4" onclick="filterFunnel('4',this)">🟢 Сделка</div>
+    <div class="f-btn" data-f="5" onclick="filterFunnel('5',this)">⚫ Отказ</div>
+    <button class="ot-add" onclick="openStatusManager()" title="Управление статусами">⚙️</button>
+  </div>
+  <div class="scroll pb" id="funnelList"></div>
+</div>
+
+<!-- ЗАДАЧИ -->
+<div class="screen" id="screen-tasks">
+  <div class="bulk-bar" id="bulkBar">
+    <button class="bulk-sel-all" onclick="selectAll()">Выбрать все</button>
+    <div class="bulk-right">
+      <button class="bulk-btn" onclick="bulkReschedule()">📅 Перенести</button>
+      <button class="bulk-btn r" onclick="bulkDelete()">🗑 Удалить</button>
+      <button class="bulk-btn" onclick="cancelBulk()">✕</button>
+    </div>
+  </div>
+  <div class="tasks-tabs">
+    <button class="tt-btn active" id="tt-overdue" onclick="switchTaskTab('overdue',this)">
+      🔴 ПРОСРОЧ.<span class="tt-badge" id="badgeOverdue">0</span>
+    </button>
+    <button class="tt-btn" id="tt-today" onclick="switchTaskTab('today',this)">🟠 СЕГОДНЯ</button>
+    <button class="tt-btn" id="tt-upcoming" onclick="switchTaskTab('upcoming',this)">🟢 ПЛАН</button>
+  </div>
+  <div class="scroll pb" id="taskList"></div>
+</div>
+
+<!-- ИНОЕ -->
+<div class="screen" id="screen-other">
+  <div class="other-header" id="otherHeader">
+    <div class="ot-btn active" data-ol="all" onclick="filterOther('all',this)">Все</div>
+    <div class="ot-btn" data-ol="Потенциальные" onclick="filterOther('Потенциальные',this)">Потенциальные</div>
+    <div class="ot-btn" data-ol="Сделка" onclick="filterOther('Сделка',this)">Сделка</div>
+    <div class="ot-btn" data-ol="КХ" onclick="filterOther('КХ',this)">КХ</div>
+    <button class="ot-add" onclick="addOtherList()" title="Добавить список">+</button>
+  </div>
+  <div class="scroll pb" id="otherList"></div>
+</div>
+
+<!-- STATS SCREEN -->
+<div class="screen" id="screen-stats">
+  <div class="scroll pb" id="statsList"></div>
+</div>
+
+<!-- TEAM SCREEN -->
+<div class="screen" id="screen-team">
+  <div class="scroll pb" id="teamList">
+    <div style="padding:14px">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:8px;font-weight:600;">ССЫЛКА СКРИПТА МЕНЕДЖЕРА</div>
+        <div style="display:flex;gap:6px;">
+          <input class="inp" id="managerUrl" placeholder="https://script.google.com/macros/s/..." style="font-size:11px;">
+          <button class="save-btn" onclick="loadManagerData()">→</button>
+        </div>
+      </div>
+      <div id="teamContent"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" id="nav-funnel" onclick="showScreen('funnel')">
+    <span class="nav-icon">🎯</span>
+    <span class="nav-lbl">ВОРОНКА <span id="navCntFunnel" style="opacity:.6;font-size:8px"></span></span>
+  </button>
+  <button class="nav-btn" id="nav-tasks" onclick="showScreen('tasks')">
+    <span class="nav-icon">✅</span>
+    <span class="nav-lbl">ЗАДАЧИ <span id="navCntTasks" style="opacity:.6;font-size:8px"></span></span>
+    <span class="nav-badge" id="navBadge" style="display:none">0</span>
+  </button>
+  <button class="nav-btn" id="nav-other" onclick="showScreen('other')">
+    <span class="nav-icon">🗂</span>
+    <span class="nav-lbl">ИНОЕ <span id="navCntOther" style="opacity:.6;font-size:8px"></span></span>
+  </button>
+  <button class="nav-btn" id="nav-stats" onclick="showScreen('stats')">
+    <span class="nav-icon">📊</span>
+    <span class="nav-lbl">СТАТ</span>
+  </button>
+  <button class="nav-btn" id="nav-team" onclick="showScreen('team')">
+    <span class="nav-icon">👥</span>
+    <span class="nav-lbl">КОМАНДА</span>
+  </button>
+</nav>
+</div>
+
+<!-- FAB -->
+<button class="fab" id="fab" onclick="openAddContact()">+</button>
+
+<!-- MODAL: добавить контакт -->
+<div class="overlay" id="modalAdd">
+  <div class="modal">
+    <div class="modal-title">Новый контакт</div>
+    <div class="form-field"><label class="form-lbl">Имя / Название</label>
+      <input class="form-inp" id="newName" placeholder="Иван Петров"></div>
+    <div class="form-field"><label class="form-lbl">Номер WhatsApp</label>
+      <input class="form-inp" id="newPhone" placeholder="+7 (777) 123-45-67" type="tel" oninput="formatPhone(this)"></div>
+    <div class="form-field"><label class="form-lbl">Описание / Объект</label>
+      <input class="form-inp" id="newDesc" placeholder="12x30 Алматы..."></div>
+    <div class="form-field"><label class="form-lbl">Список</label>
+      <select class="form-inp form-select" id="newList">
+        <option value="funnel:0">🔵 Воронка — Новый клиент</option>
+        <option value="funnel:1">🟠 Воронка — Касание 1-5</option>
+        <option value="funnel:2">🔶 Воронка — Касание 6-10</option>
+        <option value="funnel:3">🟣 Воронка — Договор</option>
+        <option value="funnel:4">🟢 Воронка — Сделка</option>
+        <option value="other:Потенциальные">⭐ Иное — Потенциальные</option>
+        <option value="other:Сделка">💼 Иное — Сделка</option>
+        <option value="other:КХ">🏭 Иное — КХ</option>
+      </select>
+    </div>
+    <div class="modal-btns">
+      <button class="m-btn cancel" onclick="closeModal('modalAdd')">Отмена</button>
+      <button class="m-btn confirm" onclick="saveContact()">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: перенести дату -->
+<div class="overlay" id="modalDate">
+  <div class="modal">
+    <div class="modal-title">Перенести на дату</div>
+    <input type="date" class="form-inp" id="modalDateVal" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px;">
+      <input type="checkbox" id="modalRepeat" style="width:18px;height:18px;accent-color:var(--green);cursor:pointer;flex-shrink:0;">
+      <label for="modalRepeat" style="font-size:13px;cursor:pointer;flex:1;">Повторять каждые</label>
+      <input type="number" id="modalRepeatDays" value="30" min="1" max="365" style="width:60px;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:5px 8px;font-family:inherit;font-size:13px;color:var(--text);text-align:center;">
+      <span style="font-size:13px;color:var(--text2);">дн.</span>
+    </div>
+    <div class="modal-btns">
+      <button class="m-btn cancel" onclick="closeModal('modalDate')">Отмена</button>
+      <button class="m-btn confirm" onclick="confirmDate()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: редактировать касание -->
+<div class="overlay" id="modalTouchEdit">
+  <div class="modal">
+    <div class="modal-title" id="touchEditTitle">Касание</div>
+    <div class="touch-edit-opts">
+      <button class="teo-btn" onclick="touchEditAction('write')">💬 Изменить тип — Написал</button>
+      <button class="teo-btn" onclick="touchEditAction('call')">📞 Изменить тип — Позвонил</button>
+      <button class="teo-btn" onclick="touchEditAction('manual')">👆 Изменить тип — Вручную</button>
+    </div>
+    <div class="form-field"><label class="form-lbl">Дата</label>
+      <input type="date" class="form-inp" id="touchEditDate"></div>
+    <div class="modal-btns">
+      <button class="m-btn danger" onclick="touchEditAction('delete')">Удалить</button>
+      <button class="m-btn cancel" onclick="closeModal('modalTouchEdit')">Отмена</button>
+      <button class="m-btn confirm" onclick="touchEditAction('save')">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: управление списками -->
+<div class="overlay" id="modalNewList">
+  <div class="modal">
+    <div class="modal-title">Списки</div>
+    <div id="listManagerItems" style="margin-bottom:14px;display:flex;flex-direction:column;gap:6px;"></div>
+    <div style="border-top:1px solid var(--border);padding-top:12px;">
+      <div class="form-field"><label class="form-lbl">Добавить новый список</label>
+        <div class="row-inp">
+          <input class="form-inp" id="newListName" placeholder="Название...">
+          <button class="save-btn" onclick="saveNewList()">+</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="m-btn cancel" onclick="closeModal('modalNewList')">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: управление статусами воронки -->
+<div class="overlay" id="modalStatusManager">
+  <div class="modal">
+    <div class="modal-title">Статусы воронки</div>
+    <div id="statusManagerItems" style="margin-bottom:14px;display:flex;flex-direction:column;gap:6px;"></div>
+    <div style="border-top:1px solid var(--border);padding-top:12px;">
+      <div class="form-field"><label class="form-lbl">Добавить статус</label>
+        <div class="row-inp">
+          <input class="form-inp" id="newStatusName" placeholder="Название...">
+          <button class="save-btn" onclick="addNewStatus()">+</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="m-btn cancel" onclick="closeModal('modalStatusManager')">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: редактировать статус -->
+<div class="overlay" id="modalEditStatus">
+  <div class="modal">
+    <div class="modal-title" id="editStatusTitle">Статус</div>
+    <div class="form-field"><label class="form-lbl">Название</label>
+      <input class="form-inp" id="editStatusName"></div>
+    <div class="modal-btns">
+      <button class="m-btn danger" onclick="deleteStatus()">🗑 Удалить</button>
+      <button class="m-btn cancel" onclick="closeModal('modalEditStatus')">Отмена</button>
+      <button class="m-btn confirm" onclick="renameStatus()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: выбор списка Иное -->
+<div class="overlay" id="modalChooseList">
+  <div class="modal">
+    <div class="modal-title">Перенести в список</div>
+    <div id="chooseListItems" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>
+    <div class="modal-btns">
+      <button class="m-btn cancel" onclick="closeModal('modalChooseList')">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: редактировать список -->
+<div class="overlay" id="modalEditList">
+  <div class="modal">
+    <div class="modal-title" id="editListTitle">Список</div>
+    <div class="form-field"><label class="form-lbl">Название</label>
+      <input class="form-inp" id="editListName"></div>
+    <div class="modal-btns">
+      <button class="m-btn danger" onclick="deleteList()">🗑 Удалить</button>
+      <button class="m-btn cancel" onclick="closeModal('modalEditList')">Отмена</button>
+      <button class="m-btn confirm" onclick="renameList()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: управление статусами воронки -->
+<!-- MODAL: редактировать статус -->
+<!-- MODAL: выбор списка Иное -->
+<!-- MODAL: редактировать список -->
+<script>
+// ════════════════════════════════
+// DATA
+// ════════════════════════════════
+const STATUS = {
+  0:{label:'Новый',    color:'var(--s0)',bg:'rgba(59,143,245,.13)'},
+  1:{label:'Кас.1-5',  color:'var(--s1)',bg:'rgba(255,149,0,.13)'},
+  2:{label:'Кас.6-10', color:'var(--s2)',bg:'rgba(255,107,53,.13)'},
+  3:{label:'Договор',  color:'var(--s3)',bg:'rgba(155,109,255,.13)'},
+  4:{label:'Сделка',   color:'var(--s4)',bg:'rgba(37,211,102,.13)'},
+  5:{label:'Отказ',    color:'var(--s5)',bg:'rgba(138,149,163,.13)'},
+};
+
+const TODAY = ()=>new Date().toISOString().split('T')[0];
+const FMT = d=>{if(!d)return'';const[y,m,day]=d.split('-');const mn=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];return`${parseInt(day)} ${mn[parseInt(m)-1]}`;};
+const ICON = t=>t==='call'?'📞':t==='write'?'💬':'👆';
+
+// ════════════════════════════════
+// PHONE FORMAT
+// ════════════════════════════════
+function formatPhone(input) {
+  let v = input.value.replace(/\D/g, '');
+  if(v.startsWith('8')) v = '7' + v.slice(1);
+  if(!v.startsWith('7') && v.length > 0) v = '7' + v;
+  v = v.slice(0, 11);
+  let out = '';
+  if(v.length > 0) out = '+' + v[0];
+  if(v.length > 1) out += ' (' + v.slice(1, 4);
+  if(v.length >= 4) out += ') ' + v.slice(4, 7);
+  if(v.length >= 7) out += '-' + v.slice(7, 9);
+  if(v.length >= 9) out += '-' + v.slice(9, 11);
+  input.value = out;
+}
+
+// ════════════════════════════════
+// GOOGLE SHEETS
+// ════════════════════════════════
+const GS_URL = 'https://script.google.com/macros/s/AKfycbwlK7MbM9jFdJmkIpM7yWNJiUP9l0npF61oMdOAUtM3L3F_9HzayjOhIwWhVWfZ5g-01A/exec';
+
+function safeJSON(s, def) {
+  try { return (s && typeof s === 'string') ? JSON.parse(s) : def; } catch(e) { return def; }
+}
+
+let otherLoaded = false;
+
+function parseRow(r, list, otherList='') {
+  if(list==='funnel') return {
+    id: Number(r[0]), name: r[1]||'', phone: r[2]||'', desc: r[3]||'',
+    list: 'funnel', status: parseInt(r[4])||0, otherList: '',
+    touches: safeJSON(r[5],[]), comments: safeJSON(r[6],[]), tasks: safeJSON(r[7],[]),
+  };
+  return {
+    id: Number(r[0]), name: r[1]||'', phone: r[2]||'', desc: r[3]||'',
+    list: 'other', status: 0, otherList,
+    touches: safeJSON(r[4],[]), comments: safeJSON(r[5],[]), tasks: safeJSON(r[6],[]),
+  };
+}
+
+async function gsRead() {
+  // Load funnel only (fast)
+  try {
+    const r = await fetch(GS_URL + '?action=readFunnel');
+    const data = await r.json();
+    if(!data || !data.funnel) return [];
+    const all = [];
+    if(data.funnel.length > 1) {
+      data.funnel.slice(1).filter(r=>r[0]).forEach(r => all.push(parseRow(r,'funnel')));
+    }
+    return all;
+  } catch(e) { console.error('gsRead error',e); return null; }
+}
+
+async function gsReadOther() {
+  // Load other sheets (lazy)
+  if(otherLoaded) return;
+  try {
+    const r = await fetch(GS_URL + '?action=readOther');
+    const data = await r.json();
+    if(!data || !data.other) return;
+    // remove existing other contacts
+    contacts = contacts.filter(c=>c.list==='funnel');
+    Object.entries(data.other).forEach(([sheetName, rows]) => {
+      if(rows && rows.length > 1) {
+        rows.slice(1).filter(r=>r[0]).forEach(r => {
+          contacts.push(parseRow(r,'other',sheetName));
+        });
+      }
+    });
+    // collect otherLists
+    const extra = [...new Set(contacts.filter(c=>c.list==='other'&&c.otherList).map(c=>c.otherList))];
+    extra.forEach(name => {
+      if(!otherLists.includes(name)) {
+        otherLists.push(name);
+        const header = document.getElementById('otherHeader');
+        const addBtn = header.querySelector('.ot-add');
+        const btn = document.createElement('div');
+        btn.className='ot-btn'; btn.dataset.ol=name; btn.textContent=name;
+        btn.onclick=function(){filterOther(name,this);};
+        header.insertBefore(btn,addBtn);
+      }
+    });
+    otherLoaded = true;
+    recalcCounters();
+  } catch(e) { console.error('gsReadOther error',e); }
+}
+
+async function gsWrite() {
+  // split contacts by list/otherList
+  const funnel = contacts.filter(c=>c.list==='funnel');
+  const otherGroups = {};
+  contacts.filter(c=>c.list==='other').forEach(c=>{
+    const key = c.otherList||'Потенциальные';
+    if(!otherGroups[key]) otherGroups[key]=[];
+    otherGroups[key].push(c);
+  });
+
+  const funnelHeader = ['id','name','phone','desc','status','touches','comments','tasks'];
+  const funnelRows = [funnelHeader, ...funnel.map(c=>[
+    c.id, c.name, c.phone, c.desc, c.status,
+    JSON.stringify(c.touches), JSON.stringify(c.comments), JSON.stringify(c.tasks)
+  ])];
+
+  const otherHeader = ['id','name','phone','desc','touches','comments','tasks'];
+  const otherData = {};
+  Object.entries(otherGroups).forEach(([key,arr])=>{
+    otherData[key] = [otherHeader, ...arr.map(c=>[
+      c.id, c.name, c.phone, c.desc,
+      JSON.stringify(c.touches), JSON.stringify(c.comments), JSON.stringify(c.tasks)
+    ])];
+  });
+
+  try {
+    await fetch(GS_URL + '?action=writeAll', {
+      method:'POST',
+      body: JSON.stringify({funnel: funnelRows, other: otherData}),
+    });
+  } catch(e) { console.error('gsWrite error',e); }
+}
+
+let saveTimer = null;
+function scheduleSave(immediate=false) {
+  clearTimeout(saveTimer);
+  if(immediate) {
+    gsWrite().then(()=>showToast('💾 Сохранено'));
+  } else {
+    saveTimer = setTimeout(async ()=>{
+      await gsWrite();
+      showToast('💾 Сохранено в таблицу');
+    }, 1500);
+  }
+}
+
+let contacts = [];
+let otherLists = ['Потенциальные','Сделка','КХ'];
+let currentFunnelFilter = 'all';
+let currentTaskTab = 'overdue';
+let currentOtherFilter = 'all';
+let bulkMode = false;
+let selectedTasks = new Set();
+let dateModalCb = null;
+let touchEditCtx = null; // {contactId, touchIdx}
+
+// ════════════════════════════════
+// COUNTERS
+// ════════════════════════════════
+function recalcCounters() {
+  const todayStr = TODAY();
+  const tc = contacts.filter(c=>c.list==='funnel'&&c.touches.some(t=>t.date===todayStr)).length;
+  const fc = contacts.filter(c=>c.list==='funnel').length;
+  const oc = contacts.filter(c=>c.list==='other').length;
+  const today = TODAY();
+  const allTasks = contacts.flatMap(c=>c.tasks.filter(t=>!t.done));
+  const taskTotal = allTasks.length;
+
+  document.getElementById('cntTouch').innerHTML = `${tc}<span>/30</span>`;
+  document.getElementById('cntFunnel').innerHTML = `${fc}<span>/50</span>`;
+  document.getElementById('barTouch').style.width = Math.min(100,tc/30*100)+'%';
+  document.getElementById('barFunnel').style.width = Math.min(100,fc/50*100)+'%';
+
+  // nav counts
+  const nf = document.getElementById('navCntFunnel');
+  const nt = document.getElementById('navCntTasks');
+  const no = document.getElementById('navCntOther');
+  if(nf) nf.textContent = fc>0?`(${fc})`:'';
+  if(nt) nt.textContent = taskTotal>0?`(${taskTotal})`:'';
+  if(no) no.textContent = oc>0?`(${oc})`:'';
+
+  // funnel filter counts
+  document.querySelectorAll('#funnelFilter .f-btn[data-f]').forEach(btn=>{
+    const f = btn.dataset.f;
+    if(f==='all') {
+      btn.textContent = `Все${fc>0?' ('+fc+')':''}`;
+    } else {
+      const st = STATUS[parseInt(f)];
+      if(st) {
+        const cnt = contacts.filter(c=>c.list==='funnel'&&c.status==f).length;
+        const emoji = btn.textContent.match(/^[^\w\s]*/)?.[0]||'';
+        btn.textContent = `${emoji} ${st.label}${cnt>0?' ('+cnt+')':''}`;
+      }
+    }
+  });
+
+  // other filter counts
+  document.querySelectorAll('#otherHeader .ot-btn[data-ol]').forEach(btn=>{
+    const ol = btn.dataset.ol;
+    if(ol==='all') {
+      btn.textContent = `Все${oc>0?' ('+oc+')':''}`;
+    } else {
+      const cnt = contacts.filter(c=>c.list==='other'&&c.otherList===ol).length;
+      btn.textContent = `${ol}${cnt>0?' ('+cnt+')':''}`;
+    }
+  });
+}
+
+function recalcTaskBadge() {
+  const today = TODAY();
+  const n = contacts.flatMap(c=>c.tasks).filter(t=>!t.done&&t.date<today).length;
+  const badge = document.getElementById('navBadge');
+  const badgeO = document.getElementById('badgeOverdue');
+  badge.textContent = n; badge.style.display = n>0?'':'none';
+  badgeO.textContent = n; badgeO.style.display = n>0?'':'none';
+}
+
+// ════════════════════════════════
+// SCREENS
+// ════════════════════════════════
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  document.getElementById('nav-'+name).classList.add('active');
+  document.getElementById('fab').style.display = name==='tasks'?'none':'flex';
+  if(name==='funnel') renderFunnel();
+  else if(name==='tasks') { cancelBulk(); renderTasks(); }
+  else if(name==='other') { gsReadOther().then(()=>renderOther()); }
+  else if(name==='stats') renderStats();
+  else if(name==='team') renderTeamScreen();
+}
+
+// ════════════════════════════════
+// ВОРОНКА
+// ════════════════════════════════
+function filterFunnel(f, el) {
+  document.querySelectorAll('#funnelFilter .f-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  currentFunnelFilter = f;
+  renderFunnel();
+}
+
+function renderFunnel() {
+  recalcCounters();
+  const list = document.getElementById('funnelList');
+  let fc = contacts.filter(c=>c.list==='funnel');
+  if(currentFunnelFilter!=='all') fc=fc.filter(c=>c.status==currentFunnelFilter);
+  const groups={};
+  fc.forEach(c=>{if(!groups[c.status])groups[c.status]=[];groups[c.status].push(c);});
+  const order = currentFunnelFilter==='all'?[0,1,2,3,4,5]:[parseInt(currentFunnelFilter)];
+  let html='';
+  order.forEach(s=>{
+    if(!groups[s]) return;
+    const st=STATUS[s];
+    html+=`<div class="sec-title" style="color:${st.color}">● ${st.label.toUpperCase()}<div class="sec-line"></div><span class="sec-cnt">${groups[s].length}</span></div>`;
+    groups[s].forEach(c=>{ html+=renderCC(c); });
+  });
+  list.innerHTML = html||'<div class="empty">Нет контактов</div>';
+}
+
+function renderOther() {
+  const list = document.getElementById('otherList');
+  let oc = contacts.filter(c=>c.list==='other');
+  if(currentOtherFilter!=='all') oc=oc.filter(c=>c.otherList===currentOtherFilter);
+  // group by otherList
+  if(currentOtherFilter==='all') {
+    const groups={};
+    oc.forEach(c=>{if(!groups[c.otherList])groups[c.otherList]=[];groups[c.otherList].push(c);});
+    let html='';
+    Object.entries(groups).forEach(([name,arr])=>{
+      html+=`<div class="sec-title" style="color:var(--yellow)">● ${name.toUpperCase()}<div class="sec-line"></div><span class="sec-cnt">${arr.length}</span></div>`;
+      arr.forEach(c=>{html+=renderCC(c);});
+    });
+    list.innerHTML=html||'<div class="empty">Нет контактов</div>';
+  } else {
+    list.innerHTML = oc.map(c=>renderCC(c)).join('')||'<div class="empty">Нет контактов</div>';
+  }
+}
+
+function renderCC(c) {
+  const st = c.list==='funnel'?(STATUS[c.status]||STATUS[0]):{label:c.otherList||'Иное',color:'var(--yellow)',bg:'rgba(255,214,10,.1)'};
+  const init = c.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const tcount = c.touches.length;
+  const pendingTasks = c.tasks.filter(t=>!t.done).length;
+  // touches progress dots (up to 10)
+  const dots = Array.from({length:10},(_,i)=>{
+    const t = c.touches[i];
+    if(t) return `<div class="tp-dot done ${t.type}" title="${FMT(t.date)}">${i+1}</div>`;
+    return `<div class="tp-dot ${i===5?'mid':''}">${i+1}</div>`;
+  }).join('');
+  // touches list
+  const touchesHtml = c.touches.map((t,i)=>`
+    <div class="touch-item" onclick="editTouch(${c.id},${i})">
+      <span class="touch-num">${i+1}</span>
+      <span class="touch-type">${ICON(t.type)}</span>
+      <span class="touch-date">${FMT(t.date)}</span>
+      <span class="touch-edit">✎</span>
+    </div>`).join('');
+  // comments
+  const commHtml = c.comments.map(cm=>`<div class="comment-item">💬 ${cm}<div class="comment-time">ранее</div></div>`).join('');
+  // tasks
+  const tasksHtml = c.tasks.filter(t=>!t.done).map((t,i)=>`
+    <div class="task-mini">
+      <div class="tm-text">📋 ${t.text}</div>
+      <div class="tm-date">${FMT(t.date)}</div>
+    </div>`).join('');
+  // status buttons — only for funnel contacts
+  const stBtns = c.list==='funnel' ? Object.entries(STATUS).map(([k,v])=>`
+    <button class="sc-btn" style="background:${v.bg};color:${v.color};border-color:${v.color}40"
+      onclick="changeStatus(${c.id},${k})">${v.label}</button>`).join('') : '';
+  const moveBtn = c.list==='funnel'
+    ?`<button class="sc-btn" style="color:var(--yellow);border-color:rgba(255,214,10,.3);background:rgba(255,214,10,.08)" onclick="moveToOther(${c.id})">→ Иное</button>`
+    :`<button class="sc-btn" style="color:var(--green);border-color:rgba(37,211,102,.3);background:rgba(37,211,102,.08)" onclick="moveToFunnel(${c.id})">→ Воронка</button>
+      <button class="sc-btn" style="color:var(--yellow);border-color:rgba(255,214,10,.3);background:rgba(255,214,10,.08)" onclick="openChooseList(${c.id},()=>renderOther())">📁 Сменить список</button>`;
+  const deleteBtn = `<button class="sc-btn" style="color:var(--red);border-color:rgba(255,59,78,.3);background:rgba(255,59,78,.08)" onclick="deleteContact(${c.id})">🗑 Удалить</button>`;
+
+  return `
+  <div class="cc fade-in" id="cc-${c.id}">
+    <div class="cc-main" onclick="toggleDetail(${c.id})">
+      <div class="cc-av" style="background:${st.bg}">
+        <div class="av-ring" style="border-color:${st.color}40"></div>
+        <span style="color:${st.color}">${init}</span>
+      </div>
+      <div class="cc-info">
+        <div class="cc-name">${c.name}</div>
+        <div class="cc-sub">${c.desc}</div>
+      </div>
+      <div class="cc-right">
+        <div class="s-pill" style="background:${st.bg};color:${st.color}">${st.label}</div>
+        <div class="cc-kpi">👆${tcount}/10${pendingTasks>0?' · 📋'+pendingTasks:''}</div>
+      </div>
+    </div>
+    <div class="cc-actions">
+      <button class="ca-btn green" onclick="waWrite(${c.id})">
+        <span class="ca-btn-ic">💬</span>Написать
+      </button>
+      <button class="ca-btn green" onclick="waCall(${c.id})">
+        <span class="ca-btn-ic">📞</span>Позвонить
+      </button>
+      <button class="ca-btn orange" onclick="addManualTouch(${c.id})">
+        <span class="ca-btn-ic">👆</span>Касание
+      </button>
+      <button class="ca-btn" onclick="toggleDetail(${c.id})">
+        <span class="ca-btn-ic">▾</span>Детали
+      </button>
+    </div>
+    <div class="cc-detail" id="detail-${c.id}">
+      <div class="detail-inner">
+        <div class="d-section">
+          <div class="d-lbl">Касания (${tcount}/10)</div>
+          <div class="touch-progress">${dots}</div>
+          <div class="touches-list">${touchesHtml||'<div style="color:var(--text2);font-size:12px">Касаний ещё нет</div>'}</div>
+        </div>
+        <div class="d-section">
+          <div class="d-lbl">Статус / Переместить</div>
+          <div class="status-row">${stBtns}${moveBtn}${deleteBtn}</div>
+        </div>
+        <div class="d-section">
+          <div class="d-lbl">Комментарии</div>
+          <div class="comment-list" id="clist-${c.id}">${commHtml}</div>
+          <div class="row-inp">
+            <input class="inp" id="cinp-${c.id}" placeholder="Добавить комментарий...">
+            <button class="save-btn" onclick="addComment(${c.id})">→</button>
+          </div>
+        </div>
+        <div class="d-section">
+          <div class="d-lbl">Задачи</div>
+          <div id="tlist-${c.id}">${tasksHtml}</div>
+          <div class="row-inp" style="margin-top:6px;flex-wrap:wrap;gap:6px;">
+            <input class="inp" id="tinp-${c.id}" placeholder="Новая задача..." style="flex:1;min-width:150px;">
+            <button onclick="pickTaskDate(${c.id})" style="background:var(--card2);border:1px solid var(--border2);color:var(--text2);padding:8px 12px;border-radius:8px;font-size:12px;cursor:pointer;white-space:nowrap;" id="dbtn-${c.id}">📅 Дата</button>
+            <button class="save-btn" onclick="addContactTask(${c.id})">+</button>
+          </div>
+          <input type="hidden" id="dinp-${c.id}" value="">
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleDetail(id) {
+  document.getElementById('detail-'+id).classList.toggle('open');
+}
+
+// ════ TOUCHES ════
+function canAddTouchToday(c) {
+  return !c.touches.some(t=>t.date===TODAY());
+}
+
+function addTouch(cid, type) {
+  const c = contacts.find(x=>x.id===cid);
+  if(!c) return;
+  if(!canAddTouchToday(c)) {
+    // already touched today — just open WA
+    return false;
+  }
+  c.touches.push({date:TODAY(), type});
+  checkAutoStatus(c);
+  recalcCounters();
+  scheduleSave();
+  return true;
+}
+
+function checkAutoStatus(c) {
+  if(c.list!=='funnel') return;
+  if(c.touches.length>=6 && c.status<2) c.status=2;
+  else if(c.touches.length>=1 && c.status===0) c.status=1;
+}
+
+function waWrite(id) {
+  addTouch(id,'write');
+  const c=contacts.find(x=>x.id===id);
+  if(c){ const p=c.phone.replace(/\D/g,''); window.open('https://wa.me/'+p,'_blank'); }
+  rerenderCC(id);
+}
+
+function waCall(id) {
+  addTouch(id,'call');
+  const c=contacts.find(x=>x.id===id);
+  if(c){ const p=c.phone.replace(/\D/g,''); window.open('https://wa.me/'+p+'?call','_blank'); }
+  rerenderCC(id);
+}
+
+function addManualTouch(id) {
+  const added = addTouch(id,'manual');
+  if(!added && added!==false) return;
+  if(added===false) {
+    // already touched today
+    showToast('Касание сегодня уже есть');
+    return;
+  }
+  showToast('👆 Касание добавлено');
+  rerenderCC(id);
+}
+
+function editTouch(cid, tidx) {
+  const c=contacts.find(x=>x.id===cid);
+  if(!c) return;
+  const t=c.touches[tidx];
+  touchEditCtx={cid,tidx};
+  document.getElementById('touchEditTitle').textContent=`Касание ${tidx+1} — ${FMT(t.date)}`;
+  document.getElementById('touchEditDate').value=t.date;
+  openModal('modalTouchEdit');
+}
+
+function touchEditAction(action) {
+  if(!touchEditCtx) return;
+  const {cid,tidx}=touchEditCtx;
+  const c=contacts.find(x=>x.id===cid);
+  if(!c) return;
+  if(action==='delete') {
+    c.touches.splice(tidx,1);
+    checkAutoStatus(c);
+  } else if(action==='save') {
+    c.touches[tidx].date=document.getElementById('touchEditDate').value;
+  } else if(['write','call','manual'].includes(action)) {
+    c.touches[tidx].type=action;
+  }
+  closeModal('modalTouchEdit');
+  touchEditCtx=null;
+  rerenderCC(cid);
+  recalcCounters();
+  scheduleSave();
+}
+
+function rerenderCC(id) {
+  const c=contacts.find(x=>x.id===id);
+  if(!c) return;
+  const el=document.getElementById('cc-'+id);
+  if(!el) return;
+  const wasOpen=document.getElementById('detail-'+id)?.classList.contains('open');
+  const tmp=document.createElement('div');
+  tmp.innerHTML=renderCC(c);
+  el.replaceWith(tmp.firstElementChild);
+  if(wasOpen) document.getElementById('detail-'+id)?.classList.add('open');
+}
+
+// ════ STATUS / MOVE ════
+function changeStatus(id, s) {
+  const c=contacts.find(x=>x.id===id);
+  if(c){ c.status=parseInt(s); rerenderCC(id); recalcCounters(); scheduleSave(); }
+}
+
+function moveToOther(id) {
+  openChooseList(id, ()=>{ recalcCounters(); renderFunnel(); });
+}
+
+function openChooseList(id, afterCb) {
+  const container = document.getElementById('chooseListItems');
+  container.innerHTML = otherLists.map(name => `
+    <button onclick="confirmMoveToList(${id},'${name}')" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:13px 16px;text-align:left;font-family:'Golos Text',sans-serif;font-size:14px;font-weight:600;color:var(--text);cursor:pointer;">
+      📁 ${name}
+    </button>`).join('');
+  window._chooseListCb = afterCb;
+  window._chooseListId = id;
+  openModal('modalChooseList');
+}
+
+function confirmMoveToList(id, listName) {
+  const c = contacts.find(x=>x.id===id);
+  if(!c) return;
+  c.list='other'; c.otherList=listName;
+  closeModal('modalChooseList');
+  recalcCounters(); scheduleSave();
+  if(window._chooseListCb) window._chooseListCb();
+  showToast('Перенесён в ' + listName);
+  window._chooseListCb = null;
+  window._chooseListId = null;
+}
+
+function moveToFunnel(id) {
+  const c=contacts.find(x=>x.id===id);
+  if(c){ c.list='funnel'; c.status=1; recalcCounters(); renderOther(); scheduleSave(); }
+}
+
+function deleteContact(id) {
+  if(!confirm('Удалить контакт?')) return;
+  const c = contacts.find(x=>x.id===id);
+  if(!c) return;
+  const wasFunnel = c.list==='funnel';
+  contacts = contacts.filter(x=>x.id!==id);
+  recalcCounters(); recalcTaskBadge(); scheduleSave();
+  if(wasFunnel) renderFunnel();
+  else renderOther();
+  showToast('Контакт удалён');
+}
+
+// ════ COMMENTS ════
+function addComment(id) {
+  const c=contacts.find(x=>x.id===id);
+  const inp=document.getElementById('cinp-'+id);
+  const val=inp.value.trim();
+  if(!val||!c) return;
+  c.comments.push(val);
+  const list=document.getElementById('clist-'+id);
+  const d=document.createElement('div');
+  d.className='comment-item fade-in';
+  d.innerHTML=`💬 ${val}<div class="comment-time">сейчас</div>`;
+  list.appendChild(d); inp.value=''; scheduleSave();
+}
+
+// ════ TASKS (in contact) ════
+function pickTaskDate(id) {
+  dateModalCb = (date) => {
+    document.getElementById('dinp-'+id).value = date;
+    const btn = document.getElementById('dbtn-'+id);
+    if(btn) { btn.textContent = '📅 ' + FMT(date); btn.style.color = 'var(--green)'; }
+  };
+  document.getElementById('modalDateVal').value = TODAY();
+  document.getElementById('modalRepeat').checked = false;
+  openModal('modalDate');
+}
+
+function addContactTask(id) {
+  const c=contacts.find(x=>x.id===id);
+  const tinp=document.getElementById('tinp-'+id);
+  const dinp=document.getElementById('dinp-'+id);
+  const text=tinp.value.trim();
+  if(!text||!c) return;
+  const date=dinp.value||TODAY();
+  c.tasks.push({text,date,done:false});
+  tinp.value=''; dinp.value='';
+  const container=document.getElementById('tlist-'+id);
+  const d=document.createElement('div');
+  d.className='task-mini fade-in';
+  const idx=c.tasks.length-1;
+  d.innerHTML=`<div class="tm-text">📋 ${text}</div>
+    <div class="tm-date">${FMT(date)}</div>
+    <button class="tm-done" onclick="doneContactTask(${id},${idx},event)">✓</button>`;
+  container.appendChild(d);
+  recalcTaskBadge();
+  scheduleSave();
+  // refresh tasks screen if open
+  if(document.getElementById('screen-tasks').classList.contains('active')) renderTasks();
+}
+
+function doneContactTask(cid, tidx, e) {
+  e.stopPropagation();
+  const c=contacts.find(x=>x.id===cid);
+  if(c){ c.tasks[tidx].done=true; scheduleSave(true); }
+  const row=e.target.closest('.task-mini');
+  row.style.opacity='0'; row.style.transform='translateX(20px)';
+  setTimeout(()=>row.remove(),300);
+  recalcTaskBadge();
+}
+
+// ════════════════════════════════
+// ЗАДАЧИ SCREEN
+// ════════════════════════════════
+function switchTaskTab(tab, el) {
+  document.querySelectorAll('.tt-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  currentTaskTab=tab;
+  cancelBulk();
+  renderTasks();
+}
+
+function renderTasks() {
+  const list=document.getElementById('taskList');
+  const today=TODAY();
+  const all=[];
+  contacts.forEach(c=>{
+    c.tasks.forEach((t,i)=>{
+      if(t.done) return;
+      const st=c.list==='funnel'?(STATUS[c.status]||STATUS[0]):{label:c.otherList||'Иное',color:'var(--yellow)',bg:'rgba(255,214,10,.1)'};
+      all.push({...t,cid:c.id,cname:c.name,phone:c.phone,tidx:i,st});
+    });
+  });
+  let filtered;
+  if(currentTaskTab==='overdue') filtered=all.filter(t=>t.date<today);
+  else if(currentTaskTab==='today') filtered=all.filter(t=>t.date===today);
+  else filtered=all.filter(t=>t.date>today);
+
+  if(!filtered.length){list.innerHTML='<div class="empty">Нет задач 🎉</div>';return;}
+
+  const cls=currentTaskTab==='overdue'?'overdue':currentTaskTab==='today'?'today':'upcoming';
+  const tc=currentTaskTab==='overdue'?'r':currentTaskTab==='today'?'o':'g';
+
+  list.innerHTML=filtered.map(t=>{
+    const key=`${t.cid}-${t.tidx}`;
+    const checked=selectedTasks.has(key);
+    return `
+    <div class="task-card ${cls} fade-in" id="tc-${key}">
+      <div class="tc-row">
+        <div class="tc-check ${checked?'on':''}" onclick="toggleSelect('${key}',this)">${checked?'✓':''}</div>
+        <div class="tc-body">
+          <div class="tc-top" style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">
+            <div class="tc-contact">${t.cname}</div>
+            <div class="tc-status-tag" style="background:${t.st.bg};color:${t.st.color}">${t.st.label}</div>
+          </div>
+          <div class="tc-text">📋 ${t.text}${t.repeat?` <span style="font-size:10px;color:var(--green);background:rgba(37,211,102,.1);padding:2px 6px;border-radius:8px;margin-left:4px;">🔁 каждые ${t.repeat}дн.</span>`:''}
+          </div>
+          <div class="tc-footer">
+            <span class="tc-time ${tc}">${FMT(t.date)}</span>
+            <div class="tc-btns">
+              <button class="tc-btn" onclick="window.open('https://wa.me/${t.phone.replace(/\D/g,'')}','_blank')">💬 WA</button>
+              <button class="tc-btn" onclick="openReschedule('${key}')">📅 Перенести</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('bulkBar').classList.toggle('show',bulkMode);
+}
+
+function doneTaskScreen(key) {
+  const [cid,tidx]=key.split('-');
+  const c=contacts.find(x=>x.id==cid);
+  if(!c) return;
+  const task = c.tasks[tidx];
+  // if repeating — create next occurrence instead of marking done
+  if(task.repeat && task.repeat > 0) {
+    const nextDate = new Date(task.date);
+    nextDate.setDate(nextDate.getDate() + task.repeat);
+    const nextDateStr = nextDate.toISOString().split('T')[0];
+    c.tasks.push({
+      text: task.text,
+      date: nextDateStr,
+      done: false,
+      repeat: task.repeat
+    });
+    showToast('🔁 Следующий повтор: ' + FMT(nextDateStr));
+  }
+  task.done = true;
+  const el=document.getElementById('tc-'+key);
+  if(el){el.style.opacity='0';el.style.transform='translateX(30px)';setTimeout(()=>el.remove(),300);}
+  scheduleSave(true);
+  recalcTaskBadge();
+}
+
+// bulk
+function toggleSelect(key, el) {
+  bulkMode = true;
+  document.getElementById('bulkBar').classList.add('show');
+  if(selectedTasks.has(key)){
+    selectedTasks.delete(key);
+    el.classList.remove('on');
+    el.textContent='';
+    if(selectedTasks.size===0){
+      bulkMode=false;
+      document.getElementById('bulkBar').classList.remove('show');
+    }
+  } else {
+    selectedTasks.add(key);
+    el.classList.add('on');
+    el.textContent='✓';
+  }
+}
+
+function selectAll() {
+  const today=TODAY();
+  const all=[];
+  contacts.forEach(c=>{c.tasks.filter(t=>!t.done).forEach((t,i)=>{
+    if(currentTaskTab==='overdue'&&t.date<today) all.push(`${c.id}-${i}`);
+    else if(currentTaskTab==='today'&&t.date===today) all.push(`${c.id}-${i}`);
+    else if(currentTaskTab==='upcoming'&&t.date>today) all.push(`${c.id}-${i}`);
+  });});
+  all.forEach(key=>{
+    selectedTasks.add(key);
+    const el=document.querySelector(`#tc-${key} .tc-check`);
+    if(el){el.classList.add('on');el.textContent='✓';}
+  });
+}
+
+function cancelBulk() {
+  bulkMode=false; selectedTasks.clear();
+  document.getElementById('bulkBar').classList.remove('show');
+}
+
+function bulkReschedule() {
+  if(!selectedTasks.size) return;
+  dateModalCb=(date, repeat, days)=>{
+    selectedTasks.forEach(key=>{
+      const [cid,tidx]=key.split('-');
+      const c=contacts.find(x=>x.id==cid);
+      if(!c) return;
+      c.tasks[tidx].date=date;
+      if(repeat && days>0) {
+        c.tasks[tidx].repeat=days;
+      } else {
+        delete c.tasks[tidx].repeat;
+      }
+    });
+    scheduleSave();
+    cancelBulk(); renderTasks(); recalcTaskBadge();
+    if(repeat) showToast('🔁 Повтор каждые '+days+' дн. установлен');
+  };
+  document.getElementById('modalDateVal').value=TODAY();
+  openModal('modalDate');
+}
+
+function bulkDelete() {
+  if(!selectedTasks.size) { showToast('Выберите задачи'); return; }
+  selectedTasks.forEach(key=>{
+    const [cid,tidx]=key.split('-');
+    const c=contacts.find(x=>x.id==cid);
+    if(c && c.tasks[tidx]) c.tasks[tidx].done=true;
+  });
+  scheduleSave(true);
+  cancelBulk();
+  renderTasks();
+  recalcTaskBadge();
+  showToast('🗑 Задачи удалены');
+}
+
+function openReschedule(key) {
+  dateModalCb=(date, repeat, days)=>{
+    const [cid,tidx]=key.split('-');
+    const c=contacts.find(x=>x.id==cid);
+    if(!c) return;
+    c.tasks[tidx].date=date;
+    if(repeat && days>0) {
+      c.tasks[tidx].repeat = days;
+      showToast('🔁 Повтор каждые '+days+' дн.');
+    } else {
+      delete c.tasks[tidx].repeat;
+    }
+    scheduleSave();
+    renderTasks(); recalcTaskBadge();
+  };
+  document.getElementById('modalDateVal').value=TODAY();
+  openModal('modalDate');
+}
+
+function confirmDate() {
+  const date = document.getElementById('modalDateVal').value;
+  if(!date) return;
+  const repeat = document.getElementById('modalRepeat').checked;
+  const days = parseInt(document.getElementById('modalRepeatDays').value) || 30;
+  if(dateModalCb) dateModalCb(date, repeat, days);
+  closeModal('modalDate');
+  dateModalCb = null;
+  // reset repeat checkbox
+  document.getElementById('modalRepeat').checked = false;
+}
+
+// ════════════════════════════════
+// ИНОЕ
+// ════════════════════════════════
+let editingList = null;
+
+function filterOther(f, el) {
+  document.querySelectorAll('#otherHeader .ot-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  currentOtherFilter=f;
+  renderOther();
+}
+
+function openEditList(name) {
+  editingList = name;
+  document.getElementById('editListTitle').textContent = name;
+  document.getElementById('editListName').value = name;
+  openModal('modalEditList');
+}
+
+function renameList() {
+  const newName = document.getElementById('editListName').value.trim();
+  if(!newName || !editingList) return;
+  if(newName === editingList) { closeModal('modalEditList'); return; }
+  // rename in contacts
+  contacts.forEach(c=>{ if(c.otherList===editingList) c.otherList=newName; });
+  // rename in otherLists
+  const idx = otherLists.indexOf(editingList);
+  if(idx>=0) otherLists[idx]=newName;
+  // update tab
+  const btn = document.querySelector(`#otherHeader .ot-btn[data-ol="${editingList}"]`);
+  if(btn) {
+    btn.textContent=newName;
+    btn.dataset.ol=newName;
+    btn.onclick=function(){filterOther(newName,this);};
+    addLongPress(btn, ()=>openEditList(newName));
+  }
+  // update select in add modal
+  const opt = document.querySelector(`#newList option[value="other:${editingList}"]`);
+  if(opt) { opt.value='other:'+newName; opt.textContent='📁 Иное — '+newName; }
+  if(currentOtherFilter===editingList) currentOtherFilter=newName;
+  editingList=null;
+  closeModal('modalEditList');
+  renderListManager();
+  renderOther();
+  scheduleSave();
+  showToast('Список переименован');
+}
+
+function deleteList() {
+  if(!editingList) return;
+  deleteListDirect(editingList);
+  editingList=null;
+  closeModal('modalEditList');
+}
+
+function renderListManager() {
+  const container = document.getElementById('listManagerItems');
+  container.innerHTML = otherLists.map(name => `
+    <div style="display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+      <span style="flex:1;font-size:14px;font-weight:600;">${name}</span>
+      <button onclick="openEditList('${name}')" style="background:none;border:1px solid var(--border2);color:var(--text2);padding:5px 10px;border-radius:7px;font-size:12px;cursor:pointer;">✏️</button>
+      <button onclick="deleteListDirect('${name}')" style="background:none;border:1px solid rgba(255,59,78,.3);color:var(--red);padding:5px 10px;border-radius:7px;font-size:12px;cursor:pointer;">🗑</button>
+    </div>`).join('');
+}
+
+function addOtherList() {
+  document.getElementById('newListName').value='';
+  renderListManager();
+  openModal('modalNewList');
+}
+
+function deleteListDirect(name) {
+  const fixed = ['Потенциальные','Сделка','КХ'];
+  if(fixed.includes(name)) { showToast('Этот список нельзя удалить'); return; }
+  const hasContacts = contacts.some(c=>c.otherList===name);
+  if(hasContacts && !confirm('Контакты переместятся в "Потенциальные". Продолжить?')) return;
+  contacts.forEach(c=>{ if(c.otherList===name) c.otherList='Потенциальные'; });
+  otherLists = otherLists.filter(l=>l!==name);
+  const btn = document.querySelector(`#otherHeader .ot-btn[data-ol="${name}"]`);
+  if(btn) btn.remove();
+  const opt = document.querySelector(`#newList option[value="other:${name}"]`);
+  if(opt) opt.remove();
+  if(currentOtherFilter===name) currentOtherFilter='all';
+  renderListManager();
+  renderOther();
+  scheduleSave();
+  showToast('Список удалён');
+}
+
+function saveNewList() {
+  const name=document.getElementById('newListName').value.trim();
+  if(!name) return;
+  if(!otherLists.includes(name)) {
+    otherLists.push(name);
+    const header=document.getElementById('otherHeader');
+    const addBtn=header.querySelector('.ot-add');
+    const btn=document.createElement('div');
+    btn.className='ot-btn';
+    btn.dataset.ol=name;
+    btn.textContent=name;
+    btn.onclick=function(){filterOther(name,this);};
+    header.insertBefore(btn,addBtn);
+    // add to add contact select
+    const sel=document.getElementById('newList');
+    const opt=document.createElement('option');
+    opt.value='other:'+name; opt.textContent='📁 Иное — '+name;
+    sel.appendChild(opt);
+  }
+  closeModal('modalNewList');
+}
+
+// ════════════════════════════════
+// ADD CONTACT
+// ════════════════════════════════
+function openAddContact() { openModal('modalAdd'); }
+
+function saveContact() {
+  const name=document.getElementById('newName').value.trim();
+  const phone=document.getElementById('newPhone').value.trim();
+  const desc=document.getElementById('newDesc').value.trim();
+  const listVal=document.getElementById('newList').value;
+  if(!name||!phone) return;
+  const [lt,lv]=listVal.split(':');
+  const nc={
+    id:Date.now(),name,phone,desc,
+    list:lt,
+    status:lt==='funnel'?parseInt(lv):0,
+    otherList:lt==='other'?lv:undefined,
+    touches:[],comments:[],tasks:[]
+  };
+  contacts.unshift(nc);
+  recalcCounters(); recalcTaskBadge();
+  closeModal('modalAdd');
+  document.getElementById('newName').value='';
+  document.getElementById('newPhone').value='';
+  document.getElementById('newDesc').value='';
+  if(lt==='funnel') renderFunnel();
+  else renderOther();
+  scheduleSave();
+}
+
+// ════════════════════════════════
+// MODAL HELPERS
+// ════════════════════════════════
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.overlay').forEach(o=>{
+  o.addEventListener('click',e=>{ if(e.target===o) o.classList.remove('open'); });
+});
+
+// ════════════════════════════════
+// TOAST
+// ════════════════════════════════
+function showToast(msg) {
+  let t=document.getElementById('toast');
+  if(!t){ t=document.createElement('div'); t.id='toast';
+    t.style.cssText='position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border2);color:var(--text);padding:9px 18px;border-radius:20px;font-size:13px;z-index:999;transition:opacity .3s;pointer-events:none;';
+    document.body.appendChild(t); }
+  t.textContent=msg; t.style.opacity='1';
+  clearTimeout(t._to); t._to=setTimeout(()=>t.style.opacity='0',2000);
+}
+
+// ════════════════════════════════
+// КОМАНДА
+// ════════════════════════════════
+let managerContacts = [];
+let managerUrl = '';
+
+function renderTeamScreen() {
+  const saved = localStorage.getItem('managerUrl');
+  if(saved) {
+    document.getElementById('managerUrl').value = saved;
+    managerUrl = saved;
+    if(managerContacts.length > 0) renderManagerStats(managerContacts);
+  }
+}
+
+async function loadManagerData() {
+  const url = document.getElementById('managerUrl').value.trim();
+  if(!url) return;
+  managerUrl = url;
+  localStorage.setItem('managerUrl', url);
+  const container = document.getElementById('teamContent');
+  container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text2)">⏳ Загрузка данных менеджера...</div>';
+  try {
+    const r = await fetch(url + '?action=readAll');
+    const data = await r.json();
+    const all = [];
+    if(data.funnel && data.funnel.length > 1) {
+      data.funnel.slice(1).filter(r=>r[0]).forEach(r => {
+        all.push({
+          id: Number(r[0]), name: r[1]||'', phone: r[2]||'', desc: r[3]||'',
+          list: 'funnel', status: parseInt(r[4])||0, otherList: '',
+          touches: safeJSON(r[5],[]), comments: safeJSON(r[6],[]), tasks: safeJSON(r[7],[]),
+        });
+      });
+    }
+    if(data.other) {
+      Object.entries(data.other).forEach(([sheetName, rows]) => {
+        if(rows && rows.length > 1) {
+          rows.slice(1).filter(r=>r[0]).forEach(r => {
+            all.push({
+              id: Number(r[0]), name: r[1]||'', phone: r[2]||'', desc: r[3]||'',
+              list: 'other', status: 0, otherList: sheetName,
+              touches: safeJSON(r[4],[]), comments: safeJSON(r[5],[]), tasks: safeJSON(r[6],[]),
+            });
+          });
+        }
+      });
+    }
+    managerContacts = all;
+    renderManagerStats(all);
+    showToast('✅ Данные менеджера загружены');
+  } catch(e) {
+    container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--red)">❌ Не удалось загрузить данные</div>';
+  }
+}
+
+function renderManagerStats(mc) {
+  const today = TODAY();
+  const funnelAll = mc.filter(c=>c.list==='funnel');
+  const touchToday = funnelAll.filter(c=>c.touches.some(t=>t.date===today)).length;
+  const deals = funnelAll.filter(c=>c.status===4).length;
+  const total = funnelAll.length;
+  const conv = total>0?Math.round(deals/total*100):0;
+  const allTasks = mc.flatMap(c=>c.tasks.filter(t=>!t.done));
+  const overdue = allTasks.filter(t=>t.date<today).length;
+  const todayTasks = allTasks.filter(t=>t.date===today).length;
+
+  // stalled
+  const stalled = funnelAll.filter(c=>{
+    if(c.touches.length===0) { c.daysAgo='∞'; return true; }
+    const last = c.touches.map(t=>t.date).sort().reverse()[0];
+    const diff = Math.floor((new Date(today)-new Date(last))/(1000*60*60*24));
+    c.daysAgo = diff;
+    return diff >= 7;
+  });
+
+  // funnel flow
+  const funnelFlow = Object.entries(STATUS).map(([k,v])=>{
+    const cnt = funnelAll.filter(c=>c.status==k).length;
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:40px;">
+      <div style="font-family:Unbounded,sans-serif;font-size:15px;font-weight:900;color:${v.color}">${cnt}</div>
+      <div style="font-size:8px;color:var(--text2);text-align:center">${v.label}</div>
+    </div>
+    ${parseInt(k)<Object.keys(STATUS).length-1?'<div style="color:var(--text3);font-size:14px;">→</div>':''}`;
+  }).join('');
+
+  // contacts list
+  const contactsHtml = funnelAll.slice(0,20).map(c=>{
+    const st = STATUS[c.status]||STATUS[0];
+    const init = c.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const lastTouch = c.touches.length>0 ? FMT(c.touches.map(t=>t.date).sort().reverse()[0]) : 'нет';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="width:36px;height:36px;border-radius:50%;background:${st.bg};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${st.color};flex-shrink:0;">${init}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${c.name}</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:1px;">Касаний: ${c.touches.length} · Последнее: ${lastTouch}</div>
+      </div>
+      <div style="font-size:9px;font-weight:700;padding:3px 7px;border-radius:8px;background:${st.bg};color:${st.color};flex-shrink:0;">${st.label}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('teamContent').innerHTML = `
+    <!-- KPI -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;">
+      <div style="font-family:Unbounded,sans-serif;font-size:10px;color:var(--text2);margin-bottom:12px;letter-spacing:1px;">KPI СЕГОДНЯ</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">
+        <div>
+          <div style="font-family:Unbounded,sans-serif;font-size:20px;font-weight:900;color:var(--blue)">${touchToday}</div>
+          <div style="font-size:9px;color:var(--text2);margin-top:2px;">КАС./30</div>
+        </div>
+        <div>
+          <div style="font-family:Unbounded,sans-serif;font-size:20px;font-weight:900;color:var(--green)">${deals}</div>
+          <div style="font-size:9px;color:var(--text2);margin-top:2px;">СДЕЛОК</div>
+        </div>
+        <div>
+          <div style="font-family:Unbounded,sans-serif;font-size:20px;font-weight:900;color:var(--orange)">${overdue}</div>
+          <div style="font-size:9px;color:var(--text2);margin-top:2px;">ПРОСРОЧ.</div>
+        </div>
+        <div>
+          <div style="font-family:Unbounded,sans-serif;font-size:20px;font-weight:900;color:var(--red)">${stalled.length}</div>
+          <div style="font-size:9px;color:var(--text2);margin-top:2px;">ЗАВИСШИХ</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ВОРОНКА -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;">
+      <div style="font-family:Unbounded,sans-serif;font-size:10px;color:var(--text2);margin-bottom:10px;letter-spacing:1px;">ВОРОНКА (${total}/50) · КОНВЕРСИЯ ${conv}%</div>
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;justify-content:center;">${funnelFlow}</div>
+    </div>
+
+    <!-- ЗАВИСШИЕ -->
+    ${stalled.length>0?`
+    <div style="background:var(--card);border:1px solid rgba(255,59,78,.2);border-radius:12px;padding:14px;margin-bottom:12px;">
+      <div style="font-family:Unbounded,sans-serif;font-size:10px;color:var(--red);margin-bottom:10px;letter-spacing:1px;">🔴 ЗАВИСШИЕ (${stalled.length})</div>
+      ${stalled.map(c=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:13px;">${c.name}</span>
+        <span style="font-size:11px;color:var(--red);">${c.daysAgo} дн.</span>
+      </div>`).join('')}
+    </div>`:''}
+
+    <!-- ЗАДАЧИ -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;">
+      <div style="font-family:Unbounded,sans-serif;font-size:10px;color:var(--text2);margin-bottom:10px;letter-spacing:1px;">ЗАДАЧИ</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center;">
+        <div style="background:var(--bg);border-radius:8px;padding:10px;">
+          <div style="font-family:Unbounded,sans-serif;font-size:20px;font-weight:900;color:var(--red)">${overdue}</div>
+          <div style="font-size:9px;color:var(--text2);margin-top:2px;">ПРОСРОЧЕНО</div>
+        </div>
+        <div style="background:var(--bg);border-radius:8px;padding:10px;">
+          <div style="font-family:Unbounded,sans-serif;font-size:20px;font-weight:900;color:var(--orange)">${todayTasks}</div>
+          <div style="font-size:9px;color:var(--text2);margin-top:2px;">СЕГОДНЯ</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- КОНТАКТЫ -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-family:Unbounded,sans-serif;font-size:10px;color:var(--text2);letter-spacing:1px;">КОНТАКТЫ (${funnelAll.length})</div>
+        <button onclick="loadManagerData()" style="background:none;border:1px solid var(--border2);color:var(--text2);padding:4px 10px;border-radius:7px;font-size:11px;cursor:pointer;">🔄 Обновить</button>
+      </div>
+      ${contactsHtml}
+    </div>
+  `;
+}
+
+// ════════════════════════════════
+// СТАТИСТИКА
+// ════════════════════════════════
+function renderStats() {
+  const today = TODAY();
+  const sl = document.getElementById('statsList');
+
+  const touchToday = contacts.filter(c=>c.list==='funnel'&&c.touches.some(t=>t.date===today)).length;
+  const newToday = contacts.filter(c=>c.id.toString().length>=13&&new Date(c.id).toISOString().split('T')[0]===today).length;
+
+  const funnelAll = contacts.filter(c=>c.list==='funnel');
+  const deals = funnelAll.filter(c=>c.status===4).length;
+  const total = funnelAll.length;
+  const conv = total>0?Math.round(deals/total*100):0;
+  const dealContacts = funnelAll.filter(c=>c.status===4);
+  const avgTouch = dealContacts.length>0
+    ? (dealContacts.reduce((s,c)=>s+c.touches.length,0)/dealContacts.length).toFixed(1)
+    : 0;
+
+  const allTasks = contacts.flatMap(c=>c.tasks.filter(t=>!t.done));
+  const overdue = allTasks.filter(t=>t.date<today).length;
+  const todayTasks = allTasks.filter(t=>t.date===today).length;
+  const upcomingTasks = allTasks.filter(t=>t.date>today).length;
+
+  // stalled contacts — no touch for 7+ days
+  const stalledContacts = funnelAll.filter(c=>{
+    if(c.touches.length===0) return true;
+    const lastTouch = c.touches.map(t=>t.date).sort().reverse()[0];
+    const diff = Math.floor((new Date(today)-new Date(lastTouch))/(1000*60*60*24));
+    c.daysAgo = diff;
+    return diff >= 7;
+  }).map(c=>{
+    if(c.touches.length===0) c.daysAgo = '∞';
+    return c;
+  });
+
+  // funnel flow
+  const funnelFlow = Object.entries(STATUS).map(([k,v])=>{
+    const cnt = funnelAll.filter(c=>c.status==k).length;
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+      <div style="font-family:Unbounded,sans-serif;font-size:16px;font-weight:900;color:${v.color}">${cnt}</div>
+      <div style="font-size:9px;color:var(--text2);text-align:center">${v.label}</div>
+    </div>
+    ${parseInt(k)<Object.keys(STATUS).length-1?'<div style="color:var(--text3);font-size:16px;align-self:center">→</div>':''}`;
+  }).join('');
+
+  // other bars
+  const maxO = Math.max(1,...otherLists.map(ol=>contacts.filter(c=>c.list==='other'&&c.otherList===ol).length));
+  const otherBarsHtml = otherLists.map(ol=>{
+    const cnt = contacts.filter(c=>c.list==='other'&&c.otherList===ol).length;
+    const pct = Math.round(cnt/maxO*100);
+    return `<div style="display:flex;align-items:center;gap:10px;">
+      <div style="width:90px;font-size:11px;color:var(--yellow);flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ol}</div>
+      <div style="flex:1;background:var(--border);border-radius:4px;height:22px;overflow:hidden">
+        <div style="width:${pct||2}%;background:var(--yellow);height:100%;border-radius:4px;display:flex;align-items:center;padding-left:6px;min-width:${cnt>0?'30px':'0'}">
+          ${cnt>0?`<span style="font-size:11px;font-weight:700;color:#000">${cnt}</span>`:''}
+        </div>
+      </div>
+      <div style="width:24px;text-align:right;font-size:13px;font-weight:700;color:var(--yellow)">${cnt}</div>
+    </div>`;
+  }).join('');
+
+  sl.innerHTML = `<div style="padding:14px;display:flex;flex-direction:column;gap:16px;">
+
+    <!-- СЕГОДНЯ -->
+    <div>
+      <div class="sec-title" style="color:var(--green);margin-bottom:10px">● СЕГОДНЯ<div class="sec-line"></div></div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text2)">Касаний сделано</span>
+          <span style="font-family:Unbounded,sans-serif;font-size:16px;font-weight:900;color:var(--blue)">${touchToday}<span style="font-size:11px;color:var(--text3)">/30</span></span>
+        </div>
+        <div style="height:1px;background:var(--border)"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text2)">Новых контактов</span>
+          <span style="font-family:Unbounded,sans-serif;font-size:16px;font-weight:900;color:var(--green)">${newToday}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ВОРОНКА -->
+    <div>
+      <div class="sec-title" style="color:var(--orange);margin-bottom:10px">● ВОРОНКА СЕЙЧАС<div class="sec-line"></div></div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;">
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;justify-content:center;">${funnelFlow}</div>
+      </div>
+    </div>
+
+    <!-- ИТОГИ -->
+    <div>
+      <div class="sec-title" style="color:var(--purple);margin-bottom:10px">● ИТОГИ<div class="sec-line"></div></div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text2)">Сделок закрыто</span>
+          <span style="font-family:Unbounded,sans-serif;font-size:16px;font-weight:900;color:var(--green)">${deals}</span>
+        </div>
+        <div style="height:1px;background:var(--border)"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text2)">Конверсия Новый → Сделка</span>
+          <span style="font-family:Unbounded,sans-serif;font-size:16px;font-weight:900;color:var(--orange)">${conv}%</span>
+        </div>
+        <div style="height:1px;background:var(--border)"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text2)">Среднее касаний до сделки</span>
+          <span style="font-family:Unbounded,sans-serif;font-size:16px;font-weight:900;color:var(--blue)">${avgTouch}</span>
+        </div>
+        <div style="height:1px;background:var(--border)"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text2)">Всего в воронке</span>
+          <span style="font-family:Unbounded,sans-serif;font-size:16px;font-weight:900;color:var(--text)">${total}<span style="font-size:11px;color:var(--text3)">/50</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ИНОЕ -->
+    <div>
+      <div class="sec-title" style="color:var(--yellow);margin-bottom:10px">● ИНОЕ<div class="sec-line"></div></div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;">
+        ${otherBarsHtml||'<div style="color:var(--text2);font-size:13px">Нет контактов</div>'}
+      </div>
+    </div>
+
+    <!-- ЗАДАЧИ -->
+    <div>
+      <div class="sec-title" style="color:var(--red);margin-bottom:10px">● ЗАДАЧИ<div class="sec-line"></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <div style="background:var(--card);border:1px solid rgba(255,59,78,.2);border-radius:12px;padding:12px 8px;text-align:center">
+          <div style="font-family:Unbounded,sans-serif;font-size:22px;font-weight:900;color:var(--red)">${overdue}</div>
+          <div style="font-size:9px;color:var(--text2);margin-top:4px">ПРОСРОЧ.</div>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,149,0,.2);border-radius:12px;padding:12px 8px;text-align:center">
+          <div style="font-family:Unbounded,sans-serif;font-size:22px;font-weight:900;color:var(--orange)">${todayTasks}</div>
+          <div style="font-size:9px;color:var(--text2);margin-top:4px">СЕГОДНЯ</div>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(37,211,102,.2);border-radius:12px;padding:12px 8px;text-align:center">
+          <div style="font-family:Unbounded,sans-serif;font-size:22px;font-weight:900;color:var(--green)">${upcomingTasks}</div>
+          <div style="font-size:9px;color:var(--text2);margin-top:4px">ПЛАН</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ЗАВИСШИЕ -->
+    <div>
+      <div class="sec-title" style="color:var(--red);margin-bottom:10px">
+        ● ЗАВИСШИЕ (7+ дней)<div class="sec-line"></div>
+        <span style="background:rgba(255,59,78,.15);color:var(--red);font-size:10px;padding:1px 7px;border-radius:8px;">${stalledContacts.length}</span>
+      </div>
+      ${stalledContacts.length === 0
+        ? `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;color:var(--green);font-size:13px;">✅ Зависших нет — отлично!</div>`
+        : stalledContacts.map(c => `
+          <div style="background:var(--card);border:1px solid rgba(255,59,78,.2);border-radius:12px;padding:12px 14px;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <div>
+                <div style="font-size:14px;font-weight:600;">${c.name}</div>
+                <div style="font-size:11px;color:var(--red);margin-top:2px;">⏰ ${c.daysAgo} дн. без касания</div>
+              </div>
+              <div style="font-size:9px;font-weight:700;padding:3px 8px;border-radius:8px;background:${(STATUS[c.status]||STATUS[0]).bg};color:${(STATUS[c.status]||STATUS[0]).color};">${(STATUS[c.status]||STATUS[0]).label}</div>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <button onclick="stalledToOther(${c.id})" style="flex:1;background:rgba(255,214,10,.08);border:1px solid rgba(255,214,10,.3);color:var(--yellow);padding:9px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">→ Иное</button>
+              <button onclick="window.open('https://wa.me/'+('${c.phone}'.replace(/[^0-9]/g,'')||''),'_blank')" style="flex:1;background:rgba(37,211,102,.08);border:1px solid rgba(37,211,102,.3);color:var(--green);padding:9px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">💬 Написать</button>
+            </div>
+          </div>`).join('')
+      }
+    </div>
+
+  </div>`;
+}
+
+function stalledToOther(id) {
+  openChooseList(id, ()=>renderStats());
+}
+
+// ════════════════════════════════
+// INIT
+// ════════════════════════════════
+function showLoader(msg) {
+  let l = document.getElementById('loader');
+  if(!l) {
+    l = document.createElement('div'); l.id='loader';
+    l.style.cssText='position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:14px;';
+    l.innerHTML='<div style="font-family:Unbounded,sans-serif;font-size:20px;font-weight:900;color:var(--green)">10-30-50</div><div id="loaderMsg" style="font-size:13px;color:var(--text2)"></div><div style="width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite"></div>';
+    document.body.appendChild(l);
+    const st = document.createElement('style');
+    st.textContent='@keyframes spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(st);
+  }
+  document.getElementById('loaderMsg').textContent = msg;
+}
+function hideLoader() {
+  const l = document.getElementById('loader');
+  if(l) { l.style.opacity='0'; l.style.transition='opacity .3s'; setTimeout(()=>l.remove(),300); }
+}
+
+// Long press helper
+function addLongPress(el, cb) {
+  let timer;
+  el.addEventListener('touchstart', ()=>{ timer=setTimeout(cb, 600); }, {passive:true});
+  el.addEventListener('touchend', ()=>clearTimeout(timer), {passive:true});
+  el.addEventListener('touchmove', ()=>clearTimeout(timer), {passive:true});
+}
+
+async function init() {
+  showLoader('Загрузка данных...');
+  const data = await gsRead();
+  if(data && data.length > 0) {
+    contacts = data;
+    // collect otherLists from data
+    const extra = [...new Set(contacts.filter(c=>c.list==='other'&&c.otherList).map(c=>c.otherList))];
+    extra.forEach(name => {
+      if(!otherLists.includes(name)) {
+        otherLists.push(name);
+        const header = document.getElementById('otherHeader');
+        const addBtn = header.querySelector('.ot-add');
+        const btn = document.createElement('div');
+        btn.className='ot-btn'; btn.dataset.ol=name; btn.textContent=name;
+        btn.onclick=function(){filterOther(name,this);};
+        header.insertBefore(btn,addBtn);
+      }
+    });
+    showToast('✅ Данные загружены');
+  } else if(data === null) {
+    showToast('⚠️ Нет связи с таблицей — работаем офлайн');
+  } else {
+    showToast('📋 Таблица пустая — добавь первый контакт');
+  }
+
+  recalcCounters();
+  recalcTaskBadge();
+  renderFunnel();
+  hideLoader();
+}
+
+// Добавляем scheduleSave() после каждого изменения данных
+const _origSaveContact = saveContact;
+
+init();
+</script>
+</body>
+</html>
