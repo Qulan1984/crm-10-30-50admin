@@ -595,7 +595,7 @@ function formatPhone(input) {
 // ════════════════════════════════
 // GOOGLE SHEETS
 // ════════════════════════════════
-const GS_URL = 'https://script.google.com/macros/s/AKfycbwlK7MbM9jFdJmkIpM7yWNJiUP9l0npF61oMdOAUtM3L3F_9HzayjOhIwWhVWfZ5g-01A/exec';
+const GS_URL = 'https://script.google.com/macros/s/AKfycbwNCnfHq5L1RBt1rOF-MG6cjrl9hsqMKArdYC5FR_Xb6L-CENsi3s3P_B3EbcN_3bWx/exec';
 
 function safeJSON(s, def) {
   try { return (s && typeof s === 'string') ? JSON.parse(s) : def; } catch(e) { return def; }
@@ -695,6 +695,74 @@ async function gsWrite() {
       body: JSON.stringify({funnel: funnelRows, other: otherData}),
     });
   } catch(e) { console.error('gsWrite error',e); }
+}
+
+// ════════════════════════════════
+// WHATSAPP POLLING
+// ════════════════════════════════
+const WA_POLL_INTERVAL_MS = 10000;
+const WA_LAST_TS_KEY = 'wa_last_ts';
+
+function waLastTs() {
+  return Number(localStorage.getItem(WA_LAST_TS_KEY) || 0);
+}
+function setWaLastTs(ts) {
+  localStorage.setItem(WA_LAST_TS_KEY, String(ts));
+}
+
+async function pollWaMessages() {
+  try {
+    const since = waLastTs();
+    const r = await fetch(GS_URL + '?action=pollMessages&since=' + since);
+    const data = await r.json();
+    const msgs = (data && data.messages) || [];
+    if (!msgs.length) return;
+
+    let maxTs = since;
+    let touched = false;
+    for (const m of msgs) {
+      if (m.timestamp > maxTs) maxTs = m.timestamp;
+
+      const phone = String(m.from).replace(/\D/g, '');
+      const preview = (m.text || '').slice(0, 40);
+      const who = m.pushName || phone;
+      showToast('💬 ' + who + ': ' + preview);
+
+      if (m.isNewLead && phone) {
+        const exists = contacts.some(c => String(c.phone).replace(/\D/g, '') === phone);
+        if (!exists) {
+          contacts.unshift({
+            id: Date.now() + Math.floor(Math.random() * 1000),
+            name: m.pushName || phone,
+            phone: phone,
+            desc: 'WhatsApp: ' + preview,
+            list: 'funnel',
+            status: 0,
+            touches: [{ date: TODAY(), type: 'wa' }],
+            comments: [{ date: TODAY(), text: m.text }],
+            tasks: []
+          });
+          touched = true;
+        }
+      }
+    }
+
+    setWaLastTs(maxTs);
+    recalcCounters();
+    recalcTaskBadge();
+    if (touched) {
+      renderFunnel();
+      scheduleSave();
+    }
+  } catch (e) {
+    console.error('pollWaMessages error', e);
+  }
+}
+
+function startWaPolling() {
+  // first run: skip backlog by anchoring lastTs to now (so we only show NEW msgs from now on)
+  if (!waLastTs()) setWaLastTs(Date.now());
+  setInterval(pollWaMessages, WA_POLL_INTERVAL_MS);
 }
 
 let saveTimer = null;
@@ -1903,6 +1971,7 @@ async function init() {
   recalcTaskBadge();
   renderFunnel();
   hideLoader();
+  startWaPolling();
 }
 
 // Добавляем scheduleSave() после каждого изменения данных

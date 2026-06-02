@@ -90,6 +90,9 @@ const startSock = async() => {
 						const phoneNumber = await question('Please enter your phone number:\n')
 						const code = await sock.requestPairingCode(phoneNumber)
 						console.log(`Pairing code: ${code}`)
+					} else {
+						const qrcode = await import('qrcode-terminal')
+						qrcode.default.generate(qr, { small: true })
 					}
 				}
 

@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Yarn
+.yarn/cache
+.yarn/install-state.gz
+.yarn/build-state.yml
+.yarn/unplugged
+.pnp.*
+
+# Baileys WhatsApp session — DO NOT COMMIT (contains login keys)
+baileys_auth_info/
+*.creds.json
+
+# Logs
+wa-logs.txt
+*.log
+
+# Env
+.env
+.env.*
+!.env.example
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Build artifacts
+lib/
+docs/api/
