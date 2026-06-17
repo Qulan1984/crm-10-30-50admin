@@ -856,7 +856,12 @@ let dateModalCb = null;
 let touchEditCtx = null; // {contactId, touchIdx}
 let callsByPhone = {};   // normalizedPhone -> [call,...] newest first
 
-function phoneKey(p) { return String(p||'').replace(/\D/g,''); }
+// Match by the last 10 significant digits so +7 / 8 / 7 prefixes and spaces all unify
+// (KZ/RU: 8 775… == +7 775… == 77751337227). Prevents duplicate cards for one number.
+function phoneKey(p) {
+  const d = String(p||'').replace(/\D/g,'');
+  return d.length > 10 ? d.slice(-10) : d;
+}
 
 function callMeta(call) {
   const incoming = String(call.direction||'').toLowerCase().indexOf('in') === 0; // inbound
@@ -971,11 +976,29 @@ async function loadCallHistory() {
     const data = await r.json();
     const calls = (data && data.calls) || [];
     let changed = false;
+    calls.forEach(ingestCall);
+
     // one-time fix: earlier auto-created call leads were wrongly named after the operator
     contacts.forEach(c => {
       if (c.desc === 'Звонок Beeline') { c.name = String(c.phone); c.desc = 'Потенциальный клиент (звонок)'; changed = true; }
     });
-    calls.forEach(call => { ingestCall(call); if (reconcileCallTouch(call)) changed = true; });
+
+    // merge duplicate call-leads into the real client with the same number
+    const isCallLead = c => c.desc === 'Звонок Beeline' || c.desc === 'Потенциальный клиент (звонок)';
+    const byPhone = {};
+    contacts.forEach(c => { const k = phoneKey(c.phone); if (k) (byPhone[k] = byPhone[k] || []).push(c); });
+    Object.values(byPhone).forEach(group => {
+      if (group.length < 2 || !group.some(isCallLead)) return; // only touch groups we created
+      const primary = group.find(c => !isCallLead(c)) || group[0]; // a real client wins
+      group.forEach(c => {
+        if (c === primary) return;
+        c.touches.forEach(t => { if (t.callId && !primary.touches.some(rt => rt.callId === t.callId)) primary.touches.push(t); });
+        contacts = contacts.filter(x => x !== c);
+        changed = true;
+      });
+    });
+
+    calls.forEach(call => { if (reconcileCallTouch(call)) changed = true; });
     // keep касания chronological so calls interleave with manual touches correctly
     contacts.forEach(c => c.touches.sort((a, b) => String(a.date).localeCompare(String(b.date))));
     recalcCounters();
