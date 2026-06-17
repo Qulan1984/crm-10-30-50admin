@@ -806,7 +806,8 @@ async function pollCalls() {
       ingestCall(call);
 
       const m = callMeta(call);
-      const who = call.abonent || phone;
+      const known = contacts.find(x => phoneKey(x.phone) === phone);
+      const who = (known && known.name) || phone; // client, not the operator
       if (!prev || prev.status !== call.status) {
         showToast('📞 ' + (m.incoming ? 'Входящий' : 'Исходящий') + ' ' + who + ' · ' + m.label);
       }
@@ -945,10 +946,11 @@ function reconcileCallTouch(call) {
   let changed = false;
   if (!c) {
     if (!callMeta(call).incoming) return false; // don't auto-create leads for outbound to unknown
+    // name = client number, NEVER the operator (call.abonent is our employee)
     c = {
       id: Date.now() + Math.floor(Math.random() * 1000),
-      name: call.abonent || String(call.phone || key), phone: String(call.phone || key),
-      desc: 'Звонок Beeline', list: 'funnel', status: 0,
+      name: String(call.phone || key), phone: String(call.phone || key),
+      desc: 'Потенциальный клиент (звонок)', list: 'funnel', status: 0,
       touches: [], comments: [], tasks: []
     };
     contacts.unshift(c);
@@ -969,6 +971,10 @@ async function loadCallHistory() {
     const data = await r.json();
     const calls = (data && data.calls) || [];
     let changed = false;
+    // one-time fix: earlier auto-created call leads were wrongly named after the operator
+    contacts.forEach(c => {
+      if (c.desc === 'Звонок Beeline') { c.name = String(c.phone); c.desc = 'Потенциальный клиент (звонок)'; changed = true; }
+    });
     calls.forEach(call => { ingestCall(call); if (reconcileCallTouch(call)) changed = true; });
     // keep касания chronological so calls interleave with manual touches correctly
     contacts.forEach(c => c.touches.sort((a, b) => String(a.date).localeCompare(String(b.date))));
