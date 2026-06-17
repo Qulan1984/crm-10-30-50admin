@@ -382,6 +382,18 @@ html,body{background:var(--bg);color:var(--text);font-family:'Golos Text',sans-s
   </div>
 </div>
 
+<!-- ЗВОНКИ -->
+<div class="screen" id="screen-calls">
+  <div class="filter-row" id="callsFilter">
+    <div class="f-btn active" data-cf="all" onclick="filterCalls('all',this)">Все</div>
+    <div class="f-btn" data-cf="in" onclick="filterCalls('in',this)">📥 Входящие</div>
+    <div class="f-btn" data-cf="out" onclick="filterCalls('out',this)">📤 Исходящие</div>
+    <div class="f-btn" data-cf="missed" onclick="filterCalls('missed',this)">📵 Пропущенные</div>
+    <div class="f-btn" data-cf="rec" onclick="filterCalls('rec',this)">🎙 С записью</div>
+  </div>
+  <div class="scroll pb" id="callsList"></div>
+</div>
+
 <!-- BOTTOM NAV -->
 <nav class="bottom-nav">
   <button class="nav-btn active" id="nav-funnel" onclick="showScreen('funnel')">
@@ -392,6 +404,10 @@ html,body{background:var(--bg);color:var(--text);font-family:'Golos Text',sans-s
     <span class="nav-icon">✅</span>
     <span class="nav-lbl">ЗАДАЧИ <span id="navCntTasks" style="opacity:.6;font-size:8px"></span></span>
     <span class="nav-badge" id="navBadge" style="display:none">0</span>
+  </button>
+  <button class="nav-btn" id="nav-calls" onclick="showScreen('calls')">
+    <span class="nav-icon">📞</span>
+    <span class="nav-lbl">ЗВОНКИ <span id="navCntCalls" style="opacity:.6;font-size:8px"></span></span>
   </button>
   <button class="nav-btn" id="nav-other" onclick="showScreen('other')">
     <span class="nav-icon">🗂</span>
@@ -776,12 +792,17 @@ function setCallLastTs(ts) { localStorage.setItem(CALL_LAST_TS_KEY, String(ts));
 
 function ingestCall(call) {
   const key = phoneKey(call.phone);
-  if (!key) return;
-  const list = callsByPhone[key] || (callsByPhone[key] = []);
-  const i = list.findIndex(x => String(x.callId) === String(call.callId));
-  if (i === -1) list.unshift(call);
-  else list[i] = Object.assign(list[i], call); // status/duration/recordId updates
-  list.sort((a,b) => (Number(b.timestamp)||0) - (Number(a.timestamp)||0));
+  if (key) {
+    const list = callsByPhone[key] || (callsByPhone[key] = []);
+    const i = list.findIndex(x => String(x.callId) === String(call.callId));
+    if (i === -1) list.unshift(call);
+    else list[i] = Object.assign(list[i], call); // status/duration/recordId updates
+    list.sort((a,b) => (Number(b.timestamp)||0) - (Number(a.timestamp)||0));
+  }
+  // flat history feed for the Звонки screen
+  const j = allCalls.findIndex(x => String(x.callId) === String(call.callId));
+  if (j === -1) allCalls.push(call);
+  else allCalls[j] = Object.assign(allCalls[j], call);
 }
 
 async function pollCalls() {
@@ -837,6 +858,9 @@ async function pollCalls() {
     setCallLastTs(maxTs);
     // refresh any open call lists in the DOM
     openCards.forEach(id => { const el = document.getElementById('calls-' + id); if (el) el.innerHTML = callsHtml(contacts.find(c=>c.id===id).phone); });
+    updateCallCount();
+    const callScreen = document.getElementById('screen-calls');
+    if (callScreen && callScreen.classList.contains('active')) renderCalls();
     if (touched) { recalcCounters(); renderFunnel(); scheduleSave(); }
   } catch (e) {
     console.error('pollCalls error', e);
@@ -871,6 +895,8 @@ let selectedTasks = new Set();
 let dateModalCb = null;
 let touchEditCtx = null; // {contactId, touchIdx}
 let callsByPhone = {};   // normalizedPhone -> [call,...] newest first
+let allCalls = [];       // flat call history for the Звонки screen
+let currentCallFilter = 'all';
 
 function phoneKey(p) { return String(p||'').replace(/\D/g,''); }
 
@@ -926,6 +952,108 @@ async function playRecording(recordId, btn) {
     console.error('playRecording', e);
     showToast('Ошибка загрузки записи');
     btn.textContent = old; btn.disabled = false;
+  }
+}
+
+// ════════════════════════════════
+// ЗВОНКИ (отдельный экран — журнал + плеер + фильтры)
+// ════════════════════════════════
+async function loadAllCalls() {
+  const list = document.getElementById('callsList');
+  if (list && !allCalls.length) list.innerHTML = '<div class="empty">Загрузка…</div>';
+  try {
+    const r = await fetch(GS_URL + '?action=pollCalls&since=0');
+    const data = await r.json();
+    (data.calls || []).forEach(ingestCall);
+  } catch (e) { console.error('loadAllCalls', e); }
+  renderCalls();
+}
+
+function filterCalls(f, el) {
+  currentCallFilter = f;
+  document.querySelectorAll('#callsFilter .f-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderCalls();
+}
+
+function updateCallCount() {
+  const el = document.getElementById('navCntCalls');
+  if (el) el.textContent = allCalls.length ? '(' + allCalls.length + ')' : '';
+}
+
+function renderCalls() {
+  updateCallCount();
+  const list = document.getElementById('callsList');
+  if (!list) return;
+  const f = currentCallFilter;
+  const calls = allCalls.slice()
+    .sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))
+    .filter(c => {
+      const m = callMeta(c);
+      if (f === 'in') return m.incoming && !m.missed;
+      if (f === 'out') return !m.incoming;
+      if (f === 'missed') return m.missed;
+      if (f === 'rec') return !!c.recordId;
+      return true;
+    });
+  list.innerHTML = calls.length
+    ? calls.map(callRowHtml).join('')
+    : '<div class="empty">Звонков нет</div>';
+}
+
+function callRowHtml(call) {
+  const m = callMeta(call);
+  const key = phoneKey(call.phone);
+  const contact = contacts.find(c => phoneKey(c.phone) === key);
+  const who = contact ? contact.name : (call.abonent || call.phone || 'Неизвестный');
+  const when = new Date(Number(call.timestamp) || Date.now());
+  const whenStr = when.toLocaleDateString('ru-RU') + ' ' + when.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const dur = fmtDur(call.duration);
+  const color = m.missed ? 'var(--red)' : (m.incoming ? 'var(--green)' : 'var(--blue)');
+  const safeId = String(call.callId).replace(/[^A-Za-z0-9-]/g, '');
+  const player = call.recordId
+    ? `<div class="call-player" id="cp-${safeId}" style="flex:1"><button class="save-btn" style="padding:6px 12px" onclick="playRecordingInline('${String(call.recordId).replace(/'/g, '')}','cp-${safeId}')">▶ Прослушать</button></div>`
+    : '<div style="flex:1"></div>';
+  const openBtn = contact
+    ? `<button class="sc-btn" style="color:var(--text2)" onclick="openCallContact(${contact.id})">Открыть карточку</button>`
+    : '';
+  return `<div class="cc" style="padding:12px 14px;margin-bottom:8px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">${m.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div class="cc-name">${who}</div>
+        <div class="cc-sub">${call.phone || ''} · ${whenStr}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="s-pill" style="color:${color};background:transparent">${m.label}</div>
+        <div class="cc-kpi">${dur || ''}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;align-items:center">${player}${openBtn}</div>
+  </div>`;
+}
+
+function openCallContact(id) {
+  showScreen('funnel');
+  setTimeout(() => {
+    const el = document.getElementById('cc-' + id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    toggleDetail(id);
+  }, 150);
+}
+
+async function playRecordingInline(recordId, containerId) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  c.innerHTML = '<span style="color:var(--text2);font-size:12px">Загрузка записи…</span>';
+  try {
+    const r = await fetch(GS_URL + '?action=callRecording&id=' + encodeURIComponent(recordId));
+    const data = await r.json();
+    if (!data || !data.b64) { c.innerHTML = '<span style="color:var(--red);font-size:12px">Запись недоступна</span>'; return; }
+    c.innerHTML = '<audio controls autoplay style="height:36px;width:100%" src="data:' + (data.mime || 'audio/mpeg') + ';base64,' + data.b64 + '"></audio>';
+  } catch (e) {
+    console.error('playRecordingInline', e);
+    c.innerHTML = '<span style="color:var(--red);font-size:12px">Ошибка загрузки</span>';
   }
 }
 
@@ -998,12 +1126,13 @@ function showScreen(name) {
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('screen-'+name).classList.add('active');
   document.getElementById('nav-'+name).classList.add('active');
-  document.getElementById('fab').style.display = name==='tasks'?'none':'flex';
+  document.getElementById('fab').style.display = (name==='tasks'||name==='calls')?'none':'flex';
   if(name==='funnel') renderFunnel();
   else if(name==='tasks') { cancelBulk(); renderTasks(); }
   else if(name==='other') { gsReadOther().then(()=>renderOther()); }
   else if(name==='stats') renderStats();
   else if(name==='team') renderTeamScreen();
+  else if(name==='calls') loadAllCalls();
 }
 
 // ════════════════════════════════
