@@ -621,12 +621,12 @@ let otherLoaded = false;
 
 function parseRow(r, list, otherList='') {
   if(list==='funnel') return {
-    id: Number(r[0]), name: r[1]||'', phone: r[2]||'', desc: r[3]||'',
+    id: Number(r[0]), name: String(r[1]||''), phone: String(r[2]||''), desc: String(r[3]||''),
     list: 'funnel', status: parseInt(r[4])||0, otherList: '',
     touches: safeJSON(r[5],[]), comments: safeJSON(r[6],[]), tasks: safeJSON(r[7],[]),
   };
   return {
-    id: Number(r[0]), name: r[1]||'', phone: r[2]||'', desc: r[3]||'',
+    id: Number(r[0]), name: String(r[1]||''), phone: String(r[2]||''), desc: String(r[3]||''),
     list: 'other', status: 0, otherList,
     touches: safeJSON(r[4],[]), comments: safeJSON(r[5],[]), tasks: safeJSON(r[6],[]),
   };
@@ -1184,7 +1184,7 @@ function renderOther() {
 
 function renderCC(c) {
   const st = c.list==='funnel'?(STATUS[c.status]||STATUS[0]):{label:c.otherList||'Иное',color:'var(--yellow)',bg:'rgba(255,214,10,.1)'};
-  const init = c.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const init = String(c.name||'').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
   const tcount = c.touches.length;
   const pendingTasks = c.tasks.filter(t=>!t.done).length;
   // touches progress dots (up to 10)
@@ -1936,7 +1936,7 @@ function renderManagerStats(mc) {
   // contacts list
   const contactsHtml = funnelAll.slice(0,20).map(c=>{
     const st = STATUS[c.status]||STATUS[0];
-    const init = c.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const init = String(c.name||'').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
     const lastTouch = c.touches.length>0 ? FMT(c.touches.map(t=>t.date).sort().reverse()[0]) : 'нет';
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
       <div style="width:36px;height:36px;border-radius:50%;background:${st.bg};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${st.color};flex-shrink:0;">${init}</div>
