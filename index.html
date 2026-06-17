@@ -765,6 +765,89 @@ function startWaPolling() {
   setInterval(pollWaMessages, WA_POLL_INTERVAL_MS);
 }
 
+// ════════════════════════════════
+// CALL POLLING (Beeline -> Apps Script -> here)
+// ════════════════════════════════
+const CALL_POLL_INTERVAL_MS = 10000;
+const CALL_LAST_TS_KEY = 'call_last_ts';
+
+function callLastTs() { return Number(localStorage.getItem(CALL_LAST_TS_KEY) || 0); }
+function setCallLastTs(ts) { localStorage.setItem(CALL_LAST_TS_KEY, String(ts)); }
+
+function ingestCall(call) {
+  const key = phoneKey(call.phone);
+  if (!key) return;
+  const list = callsByPhone[key] || (callsByPhone[key] = []);
+  const i = list.findIndex(x => String(x.callId) === String(call.callId));
+  if (i === -1) list.unshift(call);
+  else list[i] = Object.assign(list[i], call); // status/duration/recordId updates
+  list.sort((a,b) => (Number(b.timestamp)||0) - (Number(a.timestamp)||0));
+}
+
+async function pollCalls() {
+  try {
+    const since = callLastTs();
+    const r = await fetch(GS_URL + '?action=pollCalls&since=' + since);
+    const data = await r.json();
+    const calls = (data && data.calls) || [];
+    if (!calls.length) return;
+
+    let maxTs = since;
+    let touched = false;
+    const openCards = new Set();
+
+    for (const call of calls) {
+      const cursor = Number(call.updatedAt) || Number(call.timestamp);
+      if (cursor > maxTs) maxTs = cursor;
+      const phone = phoneKey(call.phone);
+
+      // toast only on first sighting or a status change, not on silent record backfill
+      const prev = (callsByPhone[phone] || []).find(x => String(x.callId) === String(call.callId));
+      ingestCall(call);
+
+      const m = callMeta(call);
+      const who = call.abonent || phone;
+      if (!prev || prev.status !== call.status) {
+        showToast('📞 ' + (m.incoming ? 'Входящий' : 'Исходящий') + ' ' + who + ' · ' + m.label);
+      }
+
+      if (phone) {
+        const c = contacts.find(x => phoneKey(x.phone) === phone);
+        if (c) {
+          openCards.add(c.id);
+          // log a "call" touch once per answered call (keyed by callId)
+          if (m.answered && !c.touches.some(t => t.callId === call.callId)) {
+            c.touches.push({ date: TODAY(), type: 'call', callId: call.callId });
+            touched = true;
+          }
+        } else if (m.incoming) {
+          // unknown caller -> new lead, mirrors WhatsApp behaviour
+          contacts.unshift({
+            id: Date.now() + Math.floor(Math.random() * 1000),
+            name: who, phone: phone, desc: 'Звонок Beeline',
+            list: 'funnel', status: 0,
+            touches: [{ date: TODAY(), type: 'call', callId: call.callId }],
+            comments: [], tasks: []
+          });
+          touched = true;
+        }
+      }
+    }
+
+    setCallLastTs(maxTs);
+    // refresh any open call lists in the DOM
+    openCards.forEach(id => { const el = document.getElementById('calls-' + id); if (el) el.innerHTML = callsHtml(contacts.find(c=>c.id===id).phone); });
+    if (touched) { recalcCounters(); renderFunnel(); scheduleSave(); }
+  } catch (e) {
+    console.error('pollCalls error', e);
+  }
+}
+
+function startCallPolling() {
+  if (!callLastTs()) setCallLastTs(Date.now());
+  setInterval(pollCalls, CALL_POLL_INTERVAL_MS);
+}
+
 let saveTimer = null;
 function scheduleSave(immediate=false) {
   clearTimeout(saveTimer);
@@ -787,6 +870,64 @@ let bulkMode = false;
 let selectedTasks = new Set();
 let dateModalCb = null;
 let touchEditCtx = null; // {contactId, touchIdx}
+let callsByPhone = {};   // normalizedPhone -> [call,...] newest first
+
+function phoneKey(p) { return String(p||'').replace(/\D/g,''); }
+
+function callMeta(call) {
+  const incoming = String(call.direction||'').toLowerCase().indexOf('in') === 0; // inbound
+  const answered = Number(call.duration) > 0;
+  const missed = !answered && incoming;
+  const icon = missed ? '📵' : (incoming ? '📥' : '📤');
+  const label = call.status || (missed ? 'пропущен' : (answered ? 'разговор' : 'звонок'));
+  return { icon, label, incoming, answered, missed };
+}
+
+function fmtDur(sec) {
+  sec = Number(sec)||0;
+  if (!sec) return '';
+  const m = Math.floor(sec/60), s = sec%60;
+  return m + ':' + String(s).padStart(2,'0');
+}
+
+function callsHtml(phone) {
+  const key = phoneKey(phone);
+  const calls = callsByPhone[key] || [];
+  if (!calls.length) return '<div style="color:var(--text2);font-size:12px">Звонков ещё нет</div>';
+  return calls.map(call => {
+    const m = callMeta(call);
+    const when = new Date(Number(call.timestamp)||Date.now());
+    const whenStr = when.toLocaleDateString('ru-RU') + ' ' + when.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+    const dur = fmtDur(call.duration);
+    const play = call.recordId
+      ? `<button class="save-btn" style="padding:4px 10px" onclick="playRecording('${String(call.recordId).replace(/'/g,'')}',this)">▶</button>`
+      : '';
+    return `<div class="touch-item" style="gap:8px">
+      <span class="touch-type">${m.icon}</span>
+      <span class="touch-date" style="flex:1">${whenStr} · ${m.label}${dur?' · '+dur:''}</span>
+      ${play}
+    </div>`;
+  }).join('');
+}
+
+async function playRecording(recordId, btn) {
+  if (!recordId) return;
+  const old = btn.textContent;
+  btn.textContent = '…'; btn.disabled = true;
+  try {
+    const r = await fetch(GS_URL + '?action=callRecording&id=' + encodeURIComponent(recordId));
+    const data = await r.json();
+    if (!data || !data.b64) { showToast('Запись недоступна'); btn.textContent = old; btn.disabled = false; return; }
+    const audio = new Audio('data:' + (data.mime||'audio/mpeg') + ';base64,' + data.b64);
+    btn.textContent = '⏸';
+    audio.onended = () => { btn.textContent = old; btn.disabled = false; };
+    audio.play();
+  } catch (e) {
+    console.error('playRecording', e);
+    showToast('Ошибка загрузки записи');
+    btn.textContent = old; btn.disabled = false;
+  }
+}
 
 // ════════════════════════════════
 // COUNTERS
@@ -985,6 +1126,10 @@ function renderCC(c) {
           <div class="d-lbl">Касания (${tcount}/10)</div>
           <div class="touch-progress">${dots}</div>
           <div class="touches-list">${touchesHtml||'<div style="color:var(--text2);font-size:12px">Касаний ещё нет</div>'}</div>
+        </div>
+        <div class="d-section">
+          <div class="d-lbl">Звонки</div>
+          <div class="touches-list" id="calls-${c.id}">${callsHtml(c.phone)}</div>
         </div>
         <div class="d-section">
           <div class="d-lbl">Статус / Переместить</div>
@@ -1972,6 +2117,7 @@ async function init() {
   renderFunnel();
   hideLoader();
   startWaPolling();
+  startCallPolling();
 }
 
 // Добавляем scheduleSave() после каждого изменения данных

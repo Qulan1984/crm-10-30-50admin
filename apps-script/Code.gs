@@ -10,20 +10,30 @@
  *   GET  ?action=readFunnel
  *   GET  ?action=readOther
  *   GET  ?action=pollMessages&since=<unix_ms>
+ *   GET  ?action=pollCalls&since=<unix_ms>
+ *   GET  ?action=callRecording&id=<recordId>     -> {mime, b64} (proxied from Beeline)
  *   POST ?action=writeAll       body: {funnel: rows[][], other: {sheetName: rows[][]}}
  *   POST ?action=addMessage     body: {from, text, pushName, timestamp, msgId}
+ *
+ * Beeline Cloud PBX (KZ) call sync: see the block at the bottom of this file.
  */
 
 const MESSAGES_SHEET = 'Messages';
 const FUNNEL_SHEET = 'funnel';
+const CALLS_SHEET = 'Calls';
 const KNOWN_OTHER = ['Потенциальные', 'Сделка', 'КХ'];
+
+// updatedAt is the poll cursor (bumped on every change); timestamp stays the real call start.
+const CALLS_HEADER = ['callId', 'timestamp', 'direction', 'phone', 'abonent', 'status', 'duration', 'recordId', 'comment', 'updatedAt'];
 
 function doGet(e) {
   const action = (e && e.parameter && e.parameter.action) || '';
   try {
-    if (action === 'readFunnel')   return json({ funnel: readSheet_(FUNNEL_SHEET) });
-    if (action === 'readOther')    return json({ other: readOther_() });
-    if (action === 'pollMessages') return json({ messages: pollMessages_(Number(e.parameter.since || 0)) });
+    if (action === 'readFunnel')    return json({ funnel: readSheet_(FUNNEL_SHEET) });
+    if (action === 'readOther')     return json({ other: readOther_() });
+    if (action === 'pollMessages')  return json({ messages: pollMessages_(Number(e.parameter.since || 0)) });
+    if (action === 'pollCalls')     return json({ calls: pollCalls_(Number(e.parameter.since || 0)) });
+    if (action === 'callRecording') return json(callRecording_(e.parameter.id));
     return json({ error: 'unknown action', action });
   } catch (err) {
     return json({ error: String(err) });
@@ -34,8 +44,8 @@ function doPost(e) {
   const action = (e && e.parameter && e.parameter.action) || '';
   const body = (e && e.postData && e.postData.contents) ? JSON.parse(e.postData.contents) : {};
   try {
-    if (action === 'writeAll')   { writeAll_(body); return json({ ok: true }); }
-    if (action === 'addMessage') return json(addMessage_(body));
+    if (action === 'writeAll')     { writeAll_(body); return json({ ok: true }); }
+    if (action === 'addMessage')   return json(addMessage_(body));
     return json({ error: 'unknown action', action });
   } catch (err) {
     return json({ error: String(err) });
@@ -168,4 +178,256 @@ function phoneExistsAnywhere_(phone) {
     }
   }
   return false;
+}
+
+// ============================================================================
+// Beeline Cloud PBX (KZ portal). There is no public REST API on cloudpbx.beeline.kz,
+// so we drive the same internal endpoints the web portal itself uses, authenticating
+// with the BearerToken cookie obtained by logging in. This is read-only.
+//
+// Script Properties (File > Project Settings > Script Properties):
+//   BEELINE_LOGIN      - portal login
+//   BEELINE_PASSWORD   - portal password
+//   BEELINE_PROFILE_ID - profile id from the portal URLs (e.g. 2991)
+//   BEELINE_BASE       - optional, default https://cloudpbx.beeline.kz/VPBX/
+//
+// Recurring: add a time-driven trigger on syncBeelineCalls() (every 1-5 min). It pulls
+// the call journal + recordings list and upserts them into the Calls sheet; the CRM
+// polls pollCalls and streams audio through callRecording (GetCallRecordContent).
+// ============================================================================
+
+const BEELINE_BASE_DEFAULT = 'https://cloudpbx.beeline.kz/VPBX/';
+const BEELINE_LOOKBACK_DAYS = 3; // re-scan recent window each run so statuses/records fill in
+
+function beelineProp_(name, def) {
+  const v = PropertiesService.getScriptProperties().getProperty(name);
+  return (v === null || v === '') ? def : v;
+}
+
+function beelineBase_() {
+  let b = beelineProp_('BEELINE_BASE', BEELINE_BASE_DEFAULT);
+  if (b.slice(-1) !== '/') b += '/';
+  return b;
+}
+
+function beelineProfileId_() {
+  const p = beelineProp_('BEELINE_PROFILE_ID', '');
+  if (!p) throw new Error('BEELINE_PROFILE_ID script property is not set');
+  return p;
+}
+
+/** Log in, capture the BearerToken cookie, cache it for reuse. */
+function beelineLogin_() {
+  const login = beelineProp_('BEELINE_LOGIN', '');
+  const pass = beelineProp_('BEELINE_PASSWORD', '');
+  if (!login || !pass) throw new Error('BEELINE_LOGIN / BEELINE_PASSWORD not set');
+
+  const resp = UrlFetchApp.fetch(beelineBase_() + 'Account/Login', {
+    method: 'post',
+    followRedirects: false,
+    muteHttpExceptions: true,
+    payload: { Login: login, Password: pass, RememberMe: 'false' }
+  });
+  const cookie = extractBearerCookie_(resp.getAllHeaders());
+  if (!cookie) throw new Error('Beeline login failed (' + resp.getResponseCode() + ')');
+  CacheService.getScriptCache().put('BEELINE_COOKIE', cookie, 1500); // 25 min
+  return cookie;
+}
+
+function beelineCookie_() {
+  return CacheService.getScriptCache().get('BEELINE_COOKIE') || beelineLogin_();
+}
+
+/** The cookie value is raw JSON ({"AccessToken":...}); grab it whole. */
+function extractBearerCookie_(headers) {
+  let sc = headers['Set-Cookie'];
+  if (!sc) return '';
+  if (Array.isArray(sc)) sc = sc.join('\n');
+  const m = sc.match(/BearerToken=(\{.*?\})/);
+  return m ? 'BearerToken=' + m[1] : '';
+}
+
+/** Authenticated request to a portal path; re-login once on an auth redirect. */
+function beelineFetch_(path, opts, retry) {
+  const o = opts || {};
+  o.followRedirects = false;
+  o.muteHttpExceptions = true;
+  o.headers = Object.assign({ Cookie: beelineCookie_() }, o.headers || {});
+  const resp = UrlFetchApp.fetch(beelineBase_() + path, o);
+  const code = resp.getResponseCode();
+  if ((code === 302 || code === 401) && !retry) {
+    CacheService.getScriptCache().remove('BEELINE_COOKIE');
+    beelineLogin_();
+    return beelineFetch_(path, opts, true);
+  }
+  return resp;
+}
+
+function beelinePostJson_(path, payload) {
+  const resp = beelineFetch_(path, { method: 'post', payload: payload });
+  const code = resp.getResponseCode();
+  if (code < 200 || code >= 300) throw new Error('Beeline ' + path + ' -> ' + code + ' ' + resp.getContentText().slice(0, 200));
+  return JSON.parse(resp.getContentText());
+}
+
+function beelineWindow_() {
+  const end = new Date();
+  const start = new Date(end.getTime() - BEELINE_LOOKBACK_DAYS * 86400000);
+  const fmt = function (d) { return Utilities.formatDate(d, 'UTC', "yyyy-MM-dd'T'HH:mm:ss"); };
+  return { start: fmt(start), end: fmt(end) };
+}
+
+/** "2026-06-17 14:21:59.000" (UTC, per portal) -> epoch ms. */
+function beelineParseDt_(s) {
+  if (!s) return Date.now();
+  const d = new Date(String(s).replace(' ', 'T').replace(/\.\d+$/, '') + 'Z');
+  const t = d.getTime();
+  return isNaN(t) ? Date.now() : t;
+}
+
+/**
+ * Pull the call journal + recordings list for the recent window and upsert into Calls.
+ * Run on a time-driven trigger. Dedupes by CallID, so overlapping windows are safe.
+ */
+function syncBeelineCalls() {
+  const pid = beelineProfileId_();
+  const w = beelineWindow_();
+
+  const calls = beelinePostJson_('Stat/CallLog?query.ProfileID=' + pid, {
+    limit: '1000', page: '1', ascending: '0', orderBy: 'StartDT', byColumn: '0',
+    'query.StartDT.start': w.start, 'query.StartDT.end': w.end
+  });
+  (calls.data || []).forEach(function (r) {
+    upsertCall_({
+      callId: r.CallID,
+      timestamp: beelineParseDt_(r.StartDT),
+      direction: r.Direction,
+      phone: normalizePhone_(r.Number),
+      abonent: r.AbonentName || '',
+      status: r.IsMissed ? ('Пропущенный · ' + (r.StatusStr || '')) : (r.StatusStr || r.Status || ''),
+      duration: r.Duration || 0
+    });
+  });
+
+  const recs = beelinePostJson_('Cloud/CallRecord?query.ProfileID=' + pid, {
+    limit: '1000', page: '1', ascending: '0', orderBy: 'DT', byColumn: '0',
+    'query.DT.start': w.start, 'query.DT.end': w.end
+  });
+  (recs.data || []).forEach(function (r) {
+    // recordId is the CallRecord row ID consumed by GetCallRecordContent.
+    upsertCall_({ callId: r.CallID, recordId: r.ID, comment: r.Comment || '' });
+  });
+
+  return { calls: (calls.data || []).length, records: (recs.data || []).length };
+}
+
+/** Insert or update a Calls row by callId; only overwrites fields actually provided. */
+function upsertCall_(c) {
+  if (!c.callId) return;
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sh = getOrCreate_(CALLS_SHEET);
+    if (sh.getLastRow() === 0) sh.appendRow(CALLS_HEADER);
+
+    const col = { callId: 1, timestamp: 2, direction: 3, phone: 4, abonent: 5, status: 6, duration: 7, recordId: 8, comment: 9, updatedAt: 10 };
+    const now = Date.now();
+    let rowIndex = 0;
+    if (sh.getLastRow() >= 2) {
+      const ids = sh.getRange(2, col.callId, sh.getLastRow() - 1, 1).getValues();
+      for (let i = 0; i < ids.length; i++) {
+        if (String(ids[i][0]) === String(c.callId)) { rowIndex = i + 2; break; }
+      }
+    }
+
+    if (!rowIndex) {
+      sh.appendRow([
+        c.callId, c.timestamp || now, c.direction || '', c.phone || '',
+        c.abonent || '', c.status || '', c.duration || '', c.recordId || '', c.comment || '', now
+      ]);
+      return;
+    }
+    // Only bump updatedAt when a provided field actually differs, so unchanged
+    // rows don't re-surface to the CRM on every sync.
+    let changed = false;
+    const set = function (key, val) {
+      if (val === undefined || val === '' || val === null) return;
+      const cell = sh.getRange(rowIndex, col[key]);
+      if (String(cell.getValue()) !== String(val)) { cell.setValue(val); changed = true; }
+    };
+    set('timestamp', c.timestamp); set('direction', c.direction); set('phone', c.phone);
+    set('abonent', c.abonent); set('status', c.status); set('duration', c.duration);
+    set('recordId', c.recordId); set('comment', c.comment);
+    if (changed) sh.getRange(rowIndex, col.updatedAt).setValue(now);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** CRM polls this; returns calls with timestamp > since. */
+function pollCalls_(since) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(CALLS_SHEET);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const values = sh.getDataRange().getValues();
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    const ts = Number(r[1]) || 0;
+    const upd = Number(r[9]) || ts; // poll cursor
+    if (upd > since) {
+      out.push({
+        callId: r[0], timestamp: ts, direction: r[2], phone: r[3],
+        abonent: r[4], status: r[5], duration: r[6], recordId: r[7], comment: r[8], updatedAt: upd
+      });
+    }
+  }
+  return out;
+}
+
+/** Proxy recording audio so the browser never holds portal credentials. */
+function callRecording_(recordId) {
+  if (!recordId) return { error: 'no record id' };
+  const resp = beelineFetch_('Cloud/GetCallRecordContent?asPreview=false&id=' + encodeURIComponent(recordId));
+  if (resp.getResponseCode() !== 200) return { error: 'beeline ' + resp.getResponseCode() };
+  const blob = resp.getBlob();
+  return { mime: 'audio/mpeg', b64: Utilities.base64Encode(blob.getBytes()) };
+}
+
+/** Quick manual check from the editor: logs in and returns the recent call count. */
+function testBeelineLogin() {
+  beelineLogin_();
+  const r = syncBeelineCalls();
+  Logger.log(JSON.stringify(r));
+  return r;
+}
+
+/**
+ * ONE-CLICK SETUP. Fill the three values below, then press Run on this function once.
+ * It saves the credentials to Script Properties, creates the every-minute sync trigger,
+ * and does a first sync. After it works, blank the values back out so you don't commit them.
+ */
+function setupBeelineTelephony() {
+  const LOGIN = '';       // <- логин от портала
+  const PASSWORD = '';    // <- пароль от портала
+  const PROFILE_ID = '';  // <- например 2991
+
+  if (!LOGIN || !PASSWORD || !PROFILE_ID) {
+    throw new Error('Заполни LOGIN, PASSWORD и PROFILE_ID в начале функции setupBeelineTelephony, потом нажми Выполнить.');
+  }
+
+  PropertiesService.getScriptProperties().setProperties({
+    BEELINE_LOGIN: LOGIN,
+    BEELINE_PASSWORD: PASSWORD,
+    BEELINE_PROFILE_ID: String(PROFILE_ID)
+  });
+
+  // Recreate the sync trigger (remove duplicates first).
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'syncBeelineCalls') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('syncBeelineCalls').timeBased().everyMinutes(1).create();
+
+  const r = syncBeelineCalls();
+  Logger.log('Готово. Синхронизировано: ' + JSON.stringify(r) + '. Триггер на syncBeelineCalls создан.');
+  return r;
 }
