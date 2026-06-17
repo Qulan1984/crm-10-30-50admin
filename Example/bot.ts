@@ -47,6 +47,26 @@ async function pushToCrm(payload: {
     }
 }
 
+// WhatsApp now addresses many chats by LID (<id>@lid) instead of the phone number.
+// Resolve it to the real phone (PN) so the CRM keys contacts by phone, not LID —
+// otherwise calls (which come with the real number) never match WhatsApp leads.
+async function resolveSenderPhone(sock: any, key: any): Promise<string> {
+    const jid: string = key.remoteJid || ''
+    if (jid.endsWith('@s.whatsapp.net')) return jid
+    if (jid.endsWith('@lid')) {
+        if (typeof key.remoteJidAlt === 'string' && key.remoteJidAlt.endsWith('@s.whatsapp.net')) {
+            return key.remoteJidAlt
+        }
+        try {
+            const pn = await sock.signalRepository?.lidMapping?.getPNForLID(jid)
+            if (pn) return pn
+        } catch {
+            /* mapping not known yet — fall back to the LID */
+        }
+    }
+    return jid
+}
+
 function extractText(message: any): string {
     if (!message) return ''
     return (
@@ -103,9 +123,11 @@ const start = async () => {
             const text = extractText(msg.message)
             if (!text) continue
 
+            const from = await resolveSenderPhone(sock, msg.key)
+
             await pushToCrm({
                 msgId: msg.key.id || '',
-                from: msg.key.remoteJid,
+                from,
                 pushName: msg.pushName || '',
                 text,
                 timestamp: Number(msg.messageTimestamp) * 1000 || Date.now()
