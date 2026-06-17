@@ -616,10 +616,11 @@ function parseRow(r, list, otherList='') {
   };
 }
 
-async function gsRead() {
-  // Load funnel only (fast)
+async function gsRead(attempt=0) {
+  // Load funnel only (fast). Retries on the transient Apps Script 404/HTML hiccup.
   try {
     const r = await fetch(GS_URL + '?action=readFunnel');
+    if(!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     if(!data || !data.funnel) return [];
     const all = [];
@@ -627,7 +628,11 @@ async function gsRead() {
       data.funnel.slice(1).filter(r=>r[0]).forEach(r => all.push(parseRow(r,'funnel')));
     }
     return all;
-  } catch(e) { console.error('gsRead error',e); return null; }
+  } catch(e) {
+    console.error('gsRead error (attempt '+attempt+')',e);
+    if(attempt < 3) { await new Promise(res=>setTimeout(res,1500)); return gsRead(attempt+1); }
+    return null;
+  }
 }
 
 async function gsReadOther() {
@@ -665,6 +670,9 @@ async function gsReadOther() {
 }
 
 async function gsWrite() {
+  // SAFETY: never overwrite the sheet until we've successfully loaded it.
+  // A failed read leaving contacts empty must NOT clear the funnel.
+  if(!dataReady) { console.warn('gsWrite skipped — data not loaded yet'); showToast('⚠️ Сохранение отменено: данные не загрузились'); return; }
   // split contacts by list/otherList
   const funnel = contacts.filter(c=>c.list==='funnel');
   const otherGroups = {};
@@ -846,6 +854,7 @@ function scheduleSave(immediate=false) {
 }
 
 let contacts = [];
+let dataReady = false; // becomes true only after a successful sheet read; gates all writes
 let otherLists = ['Потенциальные','Сделка','КХ'];
 let currentFunnelFilter = 'all';
 let currentTaskTab = 'overdue';
@@ -971,6 +980,7 @@ function reconcileCallTouch(call) {
 
 // On startup: pull the whole call history and fold it into касания.
 async function loadCallHistory() {
+  if(!dataReady) return; // never create leads / save on top of an unloaded sheet
   try {
     const r = await fetch(GS_URL + '?action=pollCalls&since=0');
     const data = await r.json();
@@ -2159,6 +2169,7 @@ function addLongPress(el, cb) {
 async function init() {
   showLoader('Загрузка данных...');
   const data = await gsRead();
+  dataReady = (data !== null); // a successful read (even of an empty sheet) enables saving
   if(data && data.length > 0) {
     contacts = data;
     // collect otherLists from data
@@ -2185,9 +2196,13 @@ async function init() {
   recalcTaskBadge();
   renderFunnel();
   hideLoader();
-  loadCallHistory();
-  startWaPolling();
-  startCallPolling();
+  if(dataReady) {
+    loadCallHistory();
+    startWaPolling();
+    startCallPolling();
+  } else {
+    showToast('⚠️ Данные не загрузились — обнови страницу. Звонки/сохранение отключены.');
+  }
 }
 
 // Добавляем scheduleSave() после каждого изменения данных
