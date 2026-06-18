@@ -113,6 +113,22 @@ html,body{background:var(--bg);color:var(--text);font-family:'Golos Text',sans-s
 .touch-type{font-size:13px;flex-shrink:0;}
 .touch-date{font-size:12px;color:var(--text);flex:1;}
 .touch-edit{font-size:10px;color:var(--text3);}
+/* inline call-recording player */
+.rec-wrap{margin:-2px 0 6px 28px;}
+.rec{display:flex;align-items:center;gap:8px;background:var(--card2);
+  border:1px solid var(--border2);border-radius:8px;padding:6px 9px;}
+.rec-play{background:var(--green);border:none;color:#000;width:26px;height:26px;
+  border-radius:50%;font-size:11px;line-height:1;cursor:pointer;flex-shrink:0;}
+.rec-play:disabled{opacity:.5;}
+.rec-seek{flex:1;height:4px;-webkit-appearance:none;appearance:none;background:var(--border2);
+  border-radius:3px;cursor:pointer;}
+.rec-seek::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:13px;height:13px;
+  border-radius:50%;background:var(--green);cursor:pointer;}
+.rec-seek::-moz-range-thumb{width:13px;height:13px;border:none;border-radius:50%;background:var(--green);cursor:pointer;}
+.rec-seek:disabled{opacity:.5;}
+.rec-time{font-size:10px;color:var(--text2);font-variant-numeric:tabular-nums;flex-shrink:0;min-width:62px;text-align:right;}
+.rec-rate{background:var(--card);border:1px solid var(--border2);color:var(--text2);
+  font-size:10px;font-weight:700;padding:3px 6px;border-radius:6px;cursor:pointer;flex-shrink:0;min-width:30px;}
 .touch-progress{display:flex;gap:4px;margin-bottom:8px;}
 .tp-dot{width:22px;height:22px;border-radius:50%;border:2px solid var(--border2);
   display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;
@@ -828,7 +844,10 @@ async function pollCalls() {
 
     setCallLastTs(maxTs);
     recalcCounters();
-    if (changed) { renderFunnel(); scheduleSave(); }
+    if (changed) scheduleSave();
+    // don't redraw cards while a recording is playing — it would wipe the open player
+    if (recPlaying) return;
+    if (changed) renderFunnel();
     else affected.forEach(id => rerenderCC(id)); // refresh call rows (e.g. recording arrived)
   } catch (e) {
     console.error('pollCalls error', e);
@@ -906,16 +925,23 @@ function touchRowHtml(c, t, i) {
       ? new Date(ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
       : FMT(t.date);
     const label = call.status || m.label;
-    const play = call.recordId
-      ? `<button class="save-btn" style="padding:2px 9px;margin-right:4px" onclick="event.stopPropagation();playRecording('${String(call.recordId).replace(/'/g,'')}',this)">▶</button>`
+    const pid = c.id + '_' + i;
+    const rid = call.recordId ? String(call.recordId).replace(/'/g, '') : '';
+    const player = rid
+      ? `<div class="rec-wrap"><div class="rec" id="rec-${pid}" data-rid="${rid}">
+          <button class="rec-play" onclick="recPlay('${pid}')">▶</button>
+          <input class="rec-seek" type="range" min="0" max="100" step="0.1" value="0" disabled
+                 oninput="recSeek('${pid}',this.value)" onclick="event.stopPropagation()">
+          <span class="rec-time">0:00</span>
+          <button class="rec-rate" onclick="recRate('${pid}')">1x</button>
+        </div></div>`
       : '';
     return `<div class="touch-item" onclick="editTouch(${c.id},${i})">
       <span class="touch-num">${num}</span>
       <span class="touch-type">${m.icon}</span>
       <span class="touch-date" style="flex:1">${whenStr}${label ? ' · ' + label : ''}${dur ? ' · ' + dur : ''}</span>
-      ${play}
       <span class="touch-edit">✎</span>
-    </div>`;
+    </div>${player}`;
   }
   return `<div class="touch-item" onclick="editTouch(${c.id},${i})">
     <span class="touch-num">${num}</span>
@@ -925,23 +951,84 @@ function touchRowHtml(c, t, i) {
   </div>`;
 }
 
-async function playRecording(recordId, btn) {
-  if (!recordId) return;
-  const old = btn.textContent;
-  btn.textContent = '…'; btn.disabled = true;
-  try {
-    const r = await fetch(GS_URL + '?action=callRecording&id=' + encodeURIComponent(recordId));
-    const data = await r.json();
-    if (!data || !data.b64) { showToast('Запись недоступна'); btn.textContent = old; btn.disabled = false; return; }
-    const audio = new Audio('data:' + (data.mime||'audio/mpeg') + ';base64,' + data.b64);
-    btn.textContent = '⏸';
-    audio.onended = () => { btn.textContent = old; btn.disabled = false; };
-    audio.play();
-  } catch (e) {
-    console.error('playRecording', e);
-    showToast('Ошибка загрузки записи');
-    btn.textContent = old; btn.disabled = false;
+// ── inline recording player (seek + speed) ──
+// Audio objects live in JS (keyed by player id) so playback survives DOM rerenders.
+const recPlayers = {};          // pid -> { audio, rate }
+let recPlaying = false;         // true while any recording plays — pauses poll-driven rerenders
+const REC_RATES = [1, 1.5, 2];
+
+function fmtClock(sec) {
+  sec = Math.floor(Number(sec) || 0);
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+function anyRecPlaying() {
+  for (const k in recPlayers) { const a = recPlayers[k].audio; if (a && !a.paused) return true; }
+  return false;
+}
+
+function syncRecUI(pid) {
+  const wrap = document.getElementById('rec-' + pid);
+  if (!wrap) return;
+  const st = recPlayers[pid];
+  const playBtn = wrap.querySelector('.rec-play');
+  const seek = wrap.querySelector('.rec-seek');
+  const time = wrap.querySelector('.rec-time');
+  const rate = wrap.querySelector('.rec-rate');
+  if (!st || !st.audio) { if (playBtn) playBtn.textContent = '▶'; return; }
+  const a = st.audio, dur = a.duration || 0, cur = a.currentTime || 0;
+  if (playBtn) playBtn.textContent = a.paused ? '▶' : '⏸';
+  if (rate) rate.textContent = st.rate + 'x';
+  if (seek) { seek.disabled = !dur; if (dur) seek.value = cur / dur * 100; }
+  if (time) time.textContent = fmtClock(cur) + (dur ? ' / ' + fmtClock(dur) : '');
+}
+
+async function recPlay(pid) {
+  const wrap = document.getElementById('rec-' + pid);
+  if (!wrap) return;
+  // pause every other recording before starting/toggling this one
+  for (const k in recPlayers) { if (k !== pid && recPlayers[k].audio && !recPlayers[k].audio.paused) { recPlayers[k].audio.pause(); syncRecUI(k); } }
+  let st = recPlayers[pid];
+  if (!st) {
+    const rid = wrap.dataset.rid;
+    const playBtn = wrap.querySelector('.rec-play');
+    if (playBtn) { playBtn.textContent = '…'; playBtn.disabled = true; }
+    try {
+      const r = await fetch(GS_URL + '?action=callRecording&id=' + encodeURIComponent(rid));
+      const data = await r.json();
+      if (!data || !data.b64) { showToast('Запись недоступна'); if (playBtn) { playBtn.textContent = '▶'; playBtn.disabled = false; } return; }
+      const audio = new Audio('data:' + (data.mime || 'audio/mpeg') + ';base64,' + data.b64);
+      st = recPlayers[pid] = { audio, rate: 1 };
+      audio.addEventListener('loadedmetadata', () => syncRecUI(pid));
+      audio.addEventListener('timeupdate', () => syncRecUI(pid));
+      audio.addEventListener('play', () => { recPlaying = true; syncRecUI(pid); });
+      audio.addEventListener('pause', () => { recPlaying = anyRecPlaying(); syncRecUI(pid); });
+      audio.addEventListener('ended', () => { recPlaying = anyRecPlaying(); syncRecUI(pid); });
+      if (playBtn) playBtn.disabled = false;
+    } catch (e) {
+      console.error('recPlay', e);
+      showToast('Ошибка загрузки записи');
+      if (playBtn) { playBtn.textContent = '▶'; playBtn.disabled = false; }
+      return;
+    }
   }
+  if (st.audio.paused) st.audio.play(); else st.audio.pause();
+}
+
+function recSeek(pid, val) {
+  const st = recPlayers[pid];
+  if (!st || !st.audio || !st.audio.duration) return;
+  st.audio.currentTime = (val / 100) * st.audio.duration;
+  syncRecUI(pid);
+}
+
+function recRate(pid) {
+  const st = recPlayers[pid];
+  if (!st || !st.audio) return;
+  st.rate = REC_RATES[(REC_RATES.indexOf(st.rate) + 1) % REC_RATES.length];
+  st.audio.playbackRate = st.rate;
+  syncRecUI(pid);
 }
 
 // ════════════════════════════════
@@ -1276,8 +1363,13 @@ function waWrite(id) {
 function waCall(id) {
   addTouch(id,'call');
   const c=contacts.find(x=>x.id===id);
-  if(c){ const p=c.phone.replace(/\D/g,''); window.open('https://wa.me/'+p+'?call','_blank'); }
   rerenderCC(id);
+  if(c){
+    const d=String(c.phone||'').replace(/\D/g,'');
+    const k=d.length>10?d.slice(-10):d;            // last 10 digits → +7XXXXXXXXXX for KZ/RU
+    const tel=k.length===10?'+7'+k:('+'+d);
+    window.location.href='tel:'+tel;               // real phone call, not WhatsApp
+  }
 }
 
 function addManualTouch(id) {
