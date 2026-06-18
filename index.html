@@ -295,6 +295,31 @@ html,body{background:var(--bg);color:var(--text);font-family:'Golos Text',sans-s
 .fade-in{animation:fi .2s ease forwards;}
 @keyframes fi{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 .empty{padding:32px;text-align:center;color:var(--text2);font-size:13px;line-height:1.6;}
+/* ── WhatsApp chat side-bar ── */
+#chat-panel{position:fixed;top:0;right:0;height:100%;height:100dvh;width:380px;max-width:100%;
+  background:var(--panel);border-left:1px solid var(--border2);z-index:60;display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .25s ease;box-shadow:-8px 0 24px rgba(0,0,0,.45);}
+#chat-panel.open{transform:none;}
+.chat-head{flex-shrink:0;display:flex;align-items:center;gap:10px;padding:13px 14px;
+  border-bottom:1px solid var(--border);background:var(--card);}
+.chat-head .ch-name{font-weight:700;font-size:14px;color:var(--text);}
+.chat-head .ch-phone{font-size:11px;color:var(--text2);margin-top:1px;}
+.chat-close{margin-left:auto;background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px 8px;line-height:1;}
+.chat-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:7px;}
+.cm{max-width:80%;padding:8px 11px;border-radius:13px;font-size:13px;line-height:1.35;word-break:break-word;white-space:pre-wrap;}
+.cm-in{align-self:flex-start;background:var(--card2);color:var(--text);border-bottom-left-radius:4px;}
+.cm-out{align-self:flex-end;background:var(--green);color:#06210f;border-bottom-right-radius:4px;}
+.cm-meta{display:block;margin-top:3px;font-size:9px;opacity:.65;text-align:right;}
+.chat-empty{margin:auto;color:var(--text3);font-size:12px;text-align:center;}
+.chat-foot{flex-shrink:0;display:flex;gap:8px;padding:10px;border-top:1px solid var(--border);background:var(--card);}
+.chat-foot textarea{flex:1;resize:none;background:var(--card2);border:1px solid var(--border2);color:var(--text);
+  border-radius:10px;padding:9px 11px;font-size:13px;font-family:inherit;max-height:110px;outline:none;}
+.chat-send{background:var(--green);border:none;color:#06210f;border-radius:10px;padding:0 15px;font-size:16px;font-weight:700;cursor:pointer;flex-shrink:0;}
+.chat-send:disabled{opacity:.5;}
+/* desktop: shift the app left to make room; mobile: full-screen overlay, no shift */
+.app{transition:margin-right .25s ease;}
+@media(min-width:601px){ body.chat-open .app{margin-right:380px;} }
+@media(max-width:600px){ #chat-panel{width:100%;border-left:none;} }
 </style>
 </head>
 <body>
@@ -422,6 +447,22 @@ html,body{background:var(--bg);color:var(--text);font-family:'Golos Text',sans-s
     <span class="nav-lbl">КОМАНДА</span>
   </button>
 </nav>
+</div>
+
+<!-- WhatsApp chat side-bar -->
+<div id="chat-panel">
+  <div class="chat-head">
+    <div>
+      <div class="ch-name" id="chatName">—</div>
+      <div class="ch-phone" id="chatPhone"></div>
+    </div>
+    <button class="chat-close" onclick="closeChat()" aria-label="Закрыть">✕</button>
+  </div>
+  <div class="chat-msgs" id="chatMsgs"></div>
+  <div class="chat-foot">
+    <textarea id="chatInput" rows="1" placeholder="Сообщение..." onkeydown="chatKey(event)"></textarea>
+    <button class="chat-send" id="chatSend" onclick="sendChat()" aria-label="Отправить">➤</button>
+  </div>
 </div>
 
 <!-- FAB -->
@@ -1354,10 +1395,130 @@ function checkAutoStatus(c) {
 }
 
 function waWrite(id) {
-  addTouch(id,'write');
-  const c=contacts.find(x=>x.id===id);
-  if(c){ const p=c.phone.replace(/\D/g,''); window.open('https://wa.me/'+p,'_blank'); }
-  rerenderCC(id);
+  // «Написать» now opens the in-CRM chat instead of bouncing to WhatsApp Web.
+  // The 'write' касание is added when a message is actually sent (see sendChat), not on open.
+  openChat(id);
+}
+
+// ════════════════════════════════
+// WhatsApp chat side-bar (two-way)
+// ════════════════════════════════
+let chatContactId = null;
+let chatPollTimer = null;
+let chatThreadSig = '';   // signature of last render — skip redraw when nothing changed
+
+function openChat(id) {
+  const c = contacts.find(x => x.id === id);
+  if (!c) return;
+  chatContactId = id;
+  chatThreadSig = '';
+  document.getElementById('chatName').textContent = c.name || c.phone || '—';
+  document.getElementById('chatPhone').textContent = c.phone || '';
+  document.getElementById('chatMsgs').innerHTML = '<div class="chat-empty">Загрузка…</div>';
+  document.body.classList.add('chat-open');
+  document.getElementById('chat-panel').classList.add('open');
+  loadThread(true);
+  if (chatPollTimer) clearInterval(chatPollTimer);
+  chatPollTimer = setInterval(() => loadThread(false), 4000);
+  setTimeout(() => document.getElementById('chatInput')?.focus(), 250);
+}
+
+function closeChat() {
+  document.body.classList.remove('chat-open');
+  document.getElementById('chat-panel').classList.remove('open');
+  if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
+  chatContactId = null;
+  chatThreadSig = '';
+}
+
+async function loadThread(scrollToEnd) {
+  if (chatContactId === null) return;
+  const c = contacts.find(x => x.id === chatContactId);
+  if (!c) return;
+  try {
+    const r = await fetch(GS_URL + '?action=thread&phone=' + encodeURIComponent(c.phone || ''));
+    const data = await r.json();
+    if (chatContactId === null) return; // panel closed while request was in flight
+    renderThread((data && data.thread) || [], scrollToEnd);
+  } catch (e) { console.error('loadThread', e); }
+}
+
+function chatTime(ts) {
+  return ts ? new Date(ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+}
+
+function renderThread(list, scrollToEnd) {
+  const box = document.getElementById('chatMsgs');
+  if (!box) return;
+  const sig = list.map(m => m.id + ':' + m.status).join('|');
+  if (sig === chatThreadSig && !scrollToEnd) return; // nothing changed — don't disturb scroll
+  chatThreadSig = sig;
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  box.innerHTML = '';
+  if (!list.length) {
+    const e = document.createElement('div');
+    e.className = 'chat-empty';
+    e.textContent = 'Переписки пока нет';
+    box.appendChild(e);
+    return;
+  }
+  for (const m of list) {
+    const div = document.createElement('div');
+    div.className = 'cm ' + (m.dir === 'out' ? 'cm-out' : 'cm-in');
+    div.textContent = m.text || '';              // textContent — safe against HTML in client text
+    const meta = document.createElement('span');
+    meta.className = 'cm-meta';
+    let mark = '';
+    if (m.dir === 'out') mark = m.status === 'sent' ? ' ✓' : (m.status === 'failed' ? ' ⚠' : ' ⏱');
+    meta.textContent = chatTime(m.timestamp) + mark;
+    div.appendChild(meta);
+    box.appendChild(div);
+  }
+  if (scrollToEnd || nearBottom) box.scrollTop = box.scrollHeight;
+}
+
+function chatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+}
+
+async function sendChat() {
+  if (chatContactId === null) return;
+  const c = contacts.find(x => x.id === chatContactId);
+  if (!c) return;
+  const inp = document.getElementById('chatInput');
+  const text = (inp.value || '').trim();
+  if (!text) return;
+  inp.value = '';
+
+  // optimistic bubble so it feels instant; the next poll replaces it with the canonical row
+  const box = document.getElementById('chatMsgs');
+  const empty = box.querySelector('.chat-empty');
+  if (empty) box.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'cm cm-out';
+  div.textContent = text;
+  const meta = document.createElement('span');
+  meta.className = 'cm-meta';
+  meta.textContent = chatTime(Date.now()) + ' ⏱';
+  div.appendChild(meta);
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  chatThreadSig = ''; // force re-render on next poll so the sent ✓ shows up
+
+  // sending a message is a касание (addTouch dedups to once per day)
+  addTouch(chatContactId, 'write');
+  rerenderCC(chatContactId);
+
+  try {
+    await fetch(GS_URL + '?action=sendMessage', {
+      method: 'POST',
+      body: JSON.stringify({ phone: c.phone, text })
+    });
+  } catch (e) {
+    console.error('sendChat', e);
+    showToast('Не удалось отправить');
+  }
+  loadThread(true);
 }
 
 function waCall(id) {

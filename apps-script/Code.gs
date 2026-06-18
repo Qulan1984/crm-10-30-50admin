@@ -4,16 +4,21 @@
  * Sheets expected in the bound spreadsheet:
  *   - "funnel"               : id | name | phone | desc | status | touches | comments | tasks
  *   - "Потенциальные" etc.   : id | name | phone | desc | touches | comments | tasks
- *   - "Messages" (auto)      : id | timestamp | from | pushName | text | isNewLead
+ *   - "Messages" (auto)      : id | timestamp | from | pushName | text | isNewLead | dir | status
+ *                              (dir = in|out ; status = ''|pending|sent|failed ; one row per chat message)
  *
  * Endpoints:
  *   GET  ?action=readFunnel
  *   GET  ?action=readOther
- *   GET  ?action=pollMessages&since=<unix_ms>
+ *   GET  ?action=pollMessages&since=<unix_ms>     -> incoming messages only (for toasts/lead creation)
+ *   GET  ?action=thread&phone=<phone>             -> full chat thread with one contact (in + out)
+ *   GET  ?action=pollOutbox                        -> pending outgoing messages (bot drains this)
  *   GET  ?action=pollCalls&since=<unix_ms>
  *   GET  ?action=callRecording&id=<recordId>     -> {mime, b64} (proxied from Beeline)
  *   POST ?action=writeAll       body: {funnel: rows[][], other: {sheetName: rows[][]}}
  *   POST ?action=addMessage     body: {from, text, pushName, timestamp, msgId}
+ *   POST ?action=sendMessage    body: {phone, text}                 -> queues an outgoing message
+ *   POST ?action=markSent       body: {id, status}                  -> bot marks an outgoing msg sent/failed
  *
  * Beeline Cloud PBX (KZ) call sync: see the block at the bottom of this file.
  */
@@ -32,6 +37,8 @@ function doGet(e) {
     if (action === 'readFunnel')    return json({ funnel: readSheet_(FUNNEL_SHEET) });
     if (action === 'readOther')     return json({ other: readOther_() });
     if (action === 'pollMessages')  return json({ messages: pollMessages_(Number(e.parameter.since || 0)) });
+    if (action === 'thread')        return json({ thread: thread_(e.parameter.phone || '') });
+    if (action === 'pollOutbox')    return json({ outbox: pollOutbox_() });
     if (action === 'pollCalls')     return json({ calls: pollCalls_(Number(e.parameter.since || 0)) });
     if (action === 'callRecording') return json(callRecording_(e.parameter.id));
     return json({ error: 'unknown action', action });
@@ -46,6 +53,8 @@ function doPost(e) {
   try {
     if (action === 'writeAll')     { writeAll_(body); return json({ ok: true }); }
     if (action === 'addMessage')   return json(addMessage_(body));
+    if (action === 'sendMessage')  return json(sendMessage_(body));
+    if (action === 'markSent')     return json(markSent_(body));
     return json({ error: 'unknown action', action });
   } catch (err) {
     return json({ error: String(err) });
@@ -113,7 +122,7 @@ function addMessage_(m) {
   try {
     const sh = getOrCreate_(MESSAGES_SHEET);
     if (sh.getLastRow() === 0) {
-      sh.appendRow(['id', 'timestamp', 'from', 'pushName', 'text', 'isNewLead']);
+      sh.appendRow(['id', 'timestamp', 'from', 'pushName', 'text', 'isNewLead', 'dir', 'status']);
     }
 
     const phone = normalizePhone_(m.from || '');
@@ -125,7 +134,9 @@ function addMessage_(m) {
       phone,
       m.pushName || '',
       m.text || '',
-      isNewLead ? 'true' : 'false'
+      isNewLead ? 'true' : 'false',
+      'in',
+      ''
     ]);
 
     return { ok: true, isNewLead };
@@ -134,7 +145,7 @@ function addMessage_(m) {
   }
 }
 
-/** CRM polls this. Returns messages with timestamp > since. */
+/** CRM polls this. Returns INCOMING messages with timestamp > since (skips our own sent ones). */
 function pollMessages_(since) {
   const sh = SpreadsheetApp.getActive().getSheetByName(MESSAGES_SHEET);
   if (!sh || sh.getLastRow() < 2) return [];
@@ -142,6 +153,7 @@ function pollMessages_(since) {
   const out = [];
   for (let i = 1; i < values.length; i++) {
     const r = values[i];
+    if (String(r[6] || 'in') === 'out') continue; // don't surface our own sent messages as incoming
     const ts = Number(r[1]) || 0;
     if (ts > since) {
       out.push({
@@ -155,6 +167,91 @@ function pollMessages_(since) {
     }
   }
   return out;
+}
+
+/** Full chat thread (incoming + outgoing) with one contact, matched by last 10 phone digits. */
+function thread_(phone) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(MESSAGES_SHEET);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const key = phoneKey_(phone);
+  if (!key) return [];
+  const values = sh.getDataRange().getValues();
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    if (phoneKey_(r[2]) !== key) continue;
+    out.push({
+      id: r[0],
+      timestamp: Number(r[1]) || 0,
+      text: r[4],
+      dir: String(r[6] || 'in'),
+      status: String(r[7] || ''),
+      pushName: r[3]
+    });
+  }
+  out.sort((a, b) => a.timestamp - b.timestamp);
+  return out;
+}
+
+/** CRM queues an outgoing message (dir=out, status=pending). The bot drains it via pollOutbox. */
+function sendMessage_(body) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sh = getOrCreate_(MESSAGES_SHEET);
+    if (sh.getLastRow() === 0) {
+      sh.appendRow(['id', 'timestamp', 'from', 'pushName', 'text', 'isNewLead', 'dir', 'status']);
+    }
+    const phone = normalizePhone_(body.phone || '');
+    if (!phone) return { ok: false, error: 'no phone' };
+    const id = 'out_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    const ts = Date.now();
+    sh.appendRow([id, ts, phone, '', body.text || '', 'false', 'out', 'pending']);
+    return { ok: true, id: id, timestamp: ts };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Bot polls this to get messages it still needs to send. */
+function pollOutbox_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(MESSAGES_SHEET);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const values = sh.getDataRange().getValues();
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    if (String(r[6]) === 'out' && String(r[7]) === 'pending') {
+      out.push({ id: r[0], phone: r[2], text: r[4] });
+    }
+  }
+  return out;
+}
+
+/** Bot calls this after it sends (or fails to send) an outgoing message. */
+function markSent_(body) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sh = SpreadsheetApp.getActive().getSheetByName(MESSAGES_SHEET);
+    if (!sh || sh.getLastRow() < 2) return { ok: false };
+    const values = sh.getDataRange().getValues();
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][0]) === String(body.id)) {
+        sh.getRange(i + 1, 8).setValue(body.status || 'sent'); // column 8 = status
+        return { ok: true };
+      }
+    }
+    return { ok: false, error: 'not found' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Last 10 digits of a phone — unifies 8.../+7.../77... formats (mirrors phoneKey on the frontend). */
+function phoneKey_(p) {
+  const d = String(p == null ? '' : p).replace(/\D/g, '');
+  return d.length > 10 ? d.slice(-10) : d;
 }
 
 function normalizePhone_(jidOrPhone) {

@@ -47,6 +47,52 @@ async function pushToCrm(payload: {
     }
 }
 
+// ── OUTGOING: drain the CRM outbox and send messages back to WhatsApp ──
+const OUTBOX_POLL_MS = 3000
+const sentOutbox = new Set<string>()   // ids already handled this process — dedup
+let draining = false
+
+async function markSent(id: string, status: 'sent' | 'failed') {
+    try {
+        await fetch(GS_URL + '?action=markSent', {
+            method: 'POST',
+            body: JSON.stringify({ id, status }),
+            redirect: 'follow'
+        })
+    } catch (err) {
+        logger.error({ err, id }, 'markSent failed')
+    }
+}
+
+async function drainOutbox(sock: any) {
+    if (GS_URL.startsWith('PASTE_') || draining) return
+    draining = true
+    try {
+        const res = await fetch(GS_URL + '?action=pollOutbox', { redirect: 'follow' })
+        const json: any = await res.json().catch(() => ({}))
+        const items: Array<{ id: string; phone: string; text: string }> = json?.outbox || []
+        for (const it of items) {
+            if (!it.id || sentOutbox.has(it.id)) continue
+            sentOutbox.add(it.id)
+            const digits = String(it.phone || '').replace(/\D/g, '')
+            if (!digits || !it.text) { await markSent(it.id, 'failed'); continue }
+            try {
+                await sock.sendMessage(digits + '@s.whatsapp.net', { text: it.text })
+                await markSent(it.id, 'sent')
+                logger.info({ to: digits }, '→ WhatsApp (from CRM)')
+            } catch (err) {
+                sentOutbox.delete(it.id)
+                logger.error({ err, id: it.id }, 'failed to send outgoing message')
+                await markSent(it.id, 'failed')
+            }
+        }
+    } catch (err) {
+        logger.error({ err }, 'pollOutbox failed')
+    } finally {
+        draining = false
+    }
+}
+
 // WhatsApp now addresses many chats by LID (<id>@lid) instead of the phone number.
 // Resolve it to the real phone (PN) so the CRM keys contacts by phone, not LID —
 // otherwise calls (which come with the real number) never match WhatsApp leads.
@@ -94,6 +140,8 @@ const start = async () => {
 
     sock.ev.on('creds.update', saveCreds)
 
+    let outboxTimer: ReturnType<typeof setInterval> | null = null
+
     sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
         if (qr) {
             qrcode.generate(qr, { small: true })
@@ -101,8 +149,12 @@ const start = async () => {
         }
         if (connection === 'open') {
             logger.info({ me: sock.user?.id }, '✅ connected')
+            // start draining the CRM outbox (clear any prior timer from a previous socket)
+            if (outboxTimer) clearInterval(outboxTimer)
+            outboxTimer = setInterval(() => drainOutbox(sock), OUTBOX_POLL_MS)
         }
         if (connection === 'close') {
+            if (outboxTimer) { clearInterval(outboxTimer); outboxTimer = null }
             const code = (lastDisconnect?.error as Boom)?.output?.statusCode
             const shouldReconnect = code !== DisconnectReason.loggedOut
             logger.warn({ code, shouldReconnect }, 'connection closed')
